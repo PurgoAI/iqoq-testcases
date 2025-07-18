@@ -1,0 +1,80 @@
+{
+  "title": "Repository Sync Validation",
+  "test_description": "Validates Git repository sync functionality by creating a test file in Git and verifying it appears in Databricks Repos within ≤5min sync time",
+  "version": "1.0",
+  "test_code": "IQ-108-4",
+  "test_seq": 4,
+  "test_suite": "IQ-108",
+  "test_suite_title": "Git Connection Validation",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "create_test_file_in_git",
+      "method": "PUT",
+      "api_url": "https://api.github.com/repos/${git_username}/test-iq-oq-git-intg/contents/sync-test-${timestamp}.txt",
+      "headers": {
+        "Authorization": "token ${personal_access_token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "message": "Test file for sync validation - ${timestamp}",
+        "content": "VGhpcyBpcyBhIHRlc3QgZmlsZSBjcmVhdGVkIGZvciBzeW5jIHZhbGlkYXRpb24uIFRpbWVzdGFtcDog${timestamp}",
+        "branch": "main"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const fileCreated = responseData && responseData.content && responseData.content.sha; const creationTime = Date.now(); logger.debug('Test file creation:', { fileCreated, creationTime }); return { ...currentVariables, file_created: fileCreated, file_creation_time: creationTime, test_file_name: 'sync-test-' + currentVariables.timestamp + '.txt' }; }"
+    },
+    {
+      "step": 2,
+      "name": "get_repo_id",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/repos",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData?.repos || []; let repoId = null; const targetRepoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; for (let i = 0; i < repos.length; i++) { if (repos[i].url === targetRepoUrl) { repoId = repos[i].id; break; } } logger.debug('Repository lookup:', { repoId, totalRepos: repos.length }); return { ...currentVariables, repo_id: repoId, total_repos: repos.length }; }"
+    },
+    {
+      "step": 3,
+      "name": "trigger_sync",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "branch": "main"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const syncTriggered = responseData && !responseData.error_code; const syncStartTime = Date.now(); logger.debug('Sync trigger:', { syncTriggered, syncStartTime }); return { ...currentVariables, sync_triggered: syncTriggered, sync_start_time: syncStartTime }; }"
+    },
+    {
+      "step": 4,
+      "name": "monitor_sync_progress",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}/sync-status",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const syncStatus = responseData?.status || 'UNKNOWN'; const syncEndTime = Date.now(); const syncDuration = syncEndTime - currentVariables.sync_start_time; const syncSuccessful = syncStatus === 'SUCCESS'; logger.debug('Sync monitoring:', { syncStatus, syncDuration, syncSuccessful }); return { ...currentVariables, sync_status: syncStatus, sync_end_time: syncEndTime, sync_duration_ms: syncDuration, sync_successful: syncSuccessful }; }"
+    },
+    {
+      "step": 5,
+      "name": "verify_file_in_repos",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}/files/${test_file_name}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const fileExists = responseData && !responseData.error_code; const fileContent = responseData?.content || ''; const contentMatches = fileContent.includes('This is a test file created for sync validation'); logger.debug('File verification:', { fileExists, contentMatches }); return { ...currentVariables, file_exists_in_repos: fileExists, content_matches: contentMatches }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const fileCreationStep = stepResults.create_test_file_in_git; const repoLookupStep = stepResults.get_repo_id; const syncTriggerStep = stepResults.trigger_sync; const syncMonitorStep = stepResults.monitor_sync_progress; const fileVerificationStep = stepResults.verify_file_in_repos; if (fileCreationStep.error) { return { status: 'fail', message: 'Failed to create test file in Git repository', code: 'FILE_CREATION_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (repoLookupStep.error) { return { status: 'fail', message: 'Failed to find repository in Databricks', code: 'REPO_LOOKUP_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (syncTriggerStep.error) { return { status: 'fail', message: 'Failed to trigger repository sync', code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (syncMonitorStep.error) { return { status: 'fail', message: 'Failed to monitor sync progress', code: 'SYNC_MONITOR_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (fileVerificationStep.error) { return { status: 'fail', message: 'Failed to verify file in Databricks Repos', code: 'FILE_VERIFICATION_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } const fileCreated = fileCreationStep.data && fileCreationStep.data.content && fileCreationStep.data.content.sha; const repoId = repoLookupStep.data?.repos?.find(repo => repo.url === 'https://github.com/PurgoAI/test-iq-oq-git-intg')?.id; const syncTriggered = syncTriggerStep.data && !syncTriggerStep.data.error_code; const syncStatus = syncMonitorStep.data?.status || 'UNKNOWN'; const syncDuration = syncMonitorStep.data ? (Date.now() - syncMonitorStep.data.sync_start_time) : 0; const syncSuccessful = syncStatus === 'SUCCESS'; const fileExists = fileVerificationStep.data && !fileVerificationStep.data.error_code; const contentMatches = fileVerificationStep.data?.content?.includes('This is a test file created for sync validation') || false; if (!fileCreated) { return { status: 'fail', message: 'Test file creation failed in Git repository', code: 'FILE_CREATION_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (!repoId) { return { status: 'fail', message: 'Repository not found in Databricks workspace', code: 'REPO_NOT_FOUND', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (!syncTriggered) { return { status: 'fail', message: 'Failed to trigger repository sync', code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (!syncSuccessful) { return { status: 'fail', message: `Repository sync failed with status: ${syncStatus}`, code: 'SYNC_FAILED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } if (!fileExists) { return { status: 'fail', message: 'Test file not found in Databricks Repos after sync', code: 'FILE_NOT_FOUND_IN_REPOS', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } const syncDurationSeconds = Math.round(syncDuration / 1000); const maxAllowedTime = 5 * 60 * 1000; // 5 minutes in milliseconds if (syncDuration > maxAllowedTime) { return { status: 'fail', message: `Repository sync validation failed - Sync took ${syncDurationSeconds}s (exceeds 5min requirement)`, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; } const statusMessage = contentMatches ? 'File content verified' : 'File exists but content verification failed'; return { status: 'pass', message: `Repository sync validation passed - File synced in ${syncDurationSeconds}s (≤5min requirement). ${statusMessage}`, code: 'REPOSITORY_SYNC_VALIDATION_PASSED', test_id: 'IQ-108-4', title: 'Repository Sync Validation' }; }"
+} 
