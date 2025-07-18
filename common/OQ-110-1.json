@@ -1,0 +1,25 @@
+{
+  "title": "Drift Detection Configuration",
+  "test_description": "Validates that data drift monitoring is configured and active for the iq_oq_demo.bronze.demographics table using Unity Catalog monitoring capabilities",
+  "version": "1.0",
+  "test_code": "OQ-110-1",
+  "test_seq": 1,
+  "test_suite": "OQ-110",
+  "test_suite_title": "Data Drift",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_drift_monitoring",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.1/unity-catalog/tables/iq_oq_demo.bronze.demographics/monitor",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { try { const monitorStep = stepResults.check_drift_monitoring; let validationDetails = []; let monitoringActive = false; let message = 'Data drift monitoring validation failed'; let code = 'MONITORING_ERROR'; const tableName = 'iq_oq_demo.bronze.demographics'; let monitorDetails = { table_name: tableName }; if (monitorStep && monitorStep.status === 200 && monitorStep.data) { validationDetails.push('✓ Unity Catalog monitoring API accessible'); const monitorConfig = monitorStep.data; monitorDetails.table_name = monitorConfig.table_name || tableName; monitorDetails.status = monitorConfig.status; monitorDetails.schedule = monitorConfig.schedule ? monitorConfig.schedule.quartz_cron_expression : undefined; monitorDetails.profile_metrics_table = monitorConfig.profile_metrics_table_name; monitorDetails.drift_metrics_table = monitorConfig.drift_metrics_table_name; monitorDetails.dashboard_id = monitorConfig.dashboard_id; if (monitorConfig.status === 'MONITOR_STATUS_ACTIVE') { monitoringActive = true; message = 'Data drift monitoring is active and properly configured'; code = 'MONITORING_ACTIVE'; validationDetails.push('✓ Monitoring status is ACTIVE'); validationDetails.push('✓ Drift detection configuration validated'); if (monitorConfig.drift_metrics_table_name) { validationDetails.push('✓ Drift metrics table configured: ' + monitorConfig.drift_metrics_table_name); } if (monitorConfig.profile_metrics_table_name) { validationDetails.push('✓ Profile metrics table configured: ' + monitorConfig.profile_metrics_table_name); } } else { message = 'Data drift monitoring is not active. Current status: ' + (monitorConfig.status || 'UNKNOWN'); code = 'MONITORING_INACTIVE'; validationDetails.push('✗ Monitoring status is not ACTIVE: ' + (monitorConfig.status || 'UNKNOWN')); validationDetails.push('✗ Expected status: MONITOR_STATUS_ACTIVE'); } } else if (monitorStep && monitorStep.status === 404) { message = 'Data drift monitoring is not configured for table ' + tableName; code = 'MONITORING_NOT_CONFIGURED'; validationDetails.push('✗ Table monitoring not configured'); validationDetails.push('✗ Unity Catalog monitor endpoint returned 404'); monitorDetails.error = 'Monitoring not configured'; } else if (monitorStep && monitorStep.status === 403) { message = 'Access denied to data drift monitoring API'; code = 'MONITORING_ACCESS_DENIED'; validationDetails.push('✗ Access denied to Unity Catalog monitoring API'); monitorDetails.error = 'Access denied'; } else if (monitorStep && monitorStep.status) { message = 'Failed to check data drift monitoring: HTTP ' + monitorStep.status; code = 'MONITORING_HTTP_' + monitorStep.status; validationDetails.push('✗ Unity Catalog monitoring API returned status: ' + monitorStep.status); monitorDetails.error = 'API call failed with status code ' + monitorStep.status; } else { message = 'No response from data drift monitoring API'; code = 'MONITORING_NO_RESPONSE'; validationDetails.push('✗ No response from Unity Catalog monitoring API'); monitorDetails.error = 'No API response'; } const status = monitoringActive ? 'pass' : 'fail'; return { status: status, message: message, code: code, test_id: 'OQ-110-1', title: 'Drift Detection Configuration' }; } catch (error) { return { status: 'fail', message: 'Error during data drift monitoring validation: ' + error.toString(), code: 'MONITORING_VALIDATION_ERROR', test_id: 'OQ-110-1', title: 'Drift Detection Configuration' }; } }"
+} 

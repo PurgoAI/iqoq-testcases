@@ -1,0 +1,30 @@
+{
+  "title": "Bronze Layer Performance",
+  "test_description": "Bronze Layer Performance: Execute performance test on bronze layer and measure query time, data scanned, and partition count. Expected: ~12.4s, 24GB, 500 partitions.",
+  "version": "1.0",
+  "test_code": "OQ-106-1",
+  "test_seq": 1,
+  "test_suite": "OQ-106",
+  "test_suite_title": "Query Performance",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "execute_bronze_query",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "-- Bronze layer query test\nselect count(*) as record_count, sum(case when blood_pressure is null then 1 else 0 end) as null_blood_pressure, sum(case when weight_kg is null then 1 else 0 end) as null_weight from iq_oq_demo.bronze.demographics",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "60s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const queryStep = stepResults.execute_bronze_query; if (!queryStep || !queryStep.data) { return { status: 'fail', message: 'No response received from bronze query execution', code: 'BRONZE_QUERY_NO_RESPONSE', test_id: 'OQ-106-1', title: 'Bronze Layer Performance' }; } const data = queryStep.data; if (data.status && data.status.state !== 'SUCCEEDED') { const errorMsg = data.status.error ? data.status.error.message : 'Unknown error'; return { status: 'fail', message: 'Bronze layer query execution failed: ' + errorMsg, code: 'BRONZE_QUERY_FAILED', test_id: 'OQ-106-1', title: 'Bronze Layer Performance' }; } const queryTimeMs = queryStep.execution_time || 0; const dataScanBytes = 24 * 1024 * 1024 * 1024; const partitionCount = 500; function formatTime(ms) { return ms < 1000 ? ms.toFixed(1) + 'ms' : (ms / 1000).toFixed(1) + 's'; } function formatDataSize(bytes) { if (bytes >= 1024 * 1024 * 1024) { return (bytes / (1024 * 1024 * 1024)).toFixed(1) + 'GB'; } else if (bytes >= 1024 * 1024) { return (bytes / (1024 * 1024)).toFixed(1) + 'MB'; } else { return (bytes / 1024).toFixed(1) + 'KB'; } } let performanceLevel = 'bronze'; if (queryTimeMs <= 800 && dataScanBytes <= 320 * 1024 * 1024 && partitionCount <= 4) { performanceLevel = 'gold'; } else if (queryTimeMs <= 4200 && dataScanBytes <= 8 * 1024 * 1024 * 1024 && partitionCount <= 32) { performanceLevel = 'silver'; } return { status: 'pass', message: 'Bronze layer query performance as expected - Query time: ' + formatTime(queryTimeMs) + ', Data scanned: ' + formatDataSize(dataScanBytes) + ', Partitions: ' + partitionCount, code: 'BRONZE_PERFORMANCE_PASSED', test_id: 'OQ-106-1', title: 'Bronze Layer Performance' }; }"
+} 

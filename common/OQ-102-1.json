@@ -1,0 +1,78 @@
+{
+  "title": "Bronze Layer Location",
+  "test_description": "Bronze layer location validation - Validates bronze external locations using Unity Catalog metadata. Uses SQL queries to check system.information_schema.external_locations and schema existence.",
+  "version": "1.0",
+  "test_code": "OQ-102-1",
+  "test_seq": 1,
+  "test_suite": "OQ-102",
+  "test_suite_title": "Data Transformation",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_external_locations",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT url FROM system.information_schema.external_locations WHERE url LIKE '%bronze%'",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const queryStatus = responseData.status?.state || 'UNKNOWN'; const dataArray = responseData.result?.data_array || []; const foundLocations = dataArray.length; const locationUrls = dataArray.map(row => row[0] || ''); logger.debug('External locations check:', { queryStatus, foundLocations, locationUrls }); return { ...currentVariables, locations_query_status: queryStatus, found_locations: foundLocations, location_urls: locationUrls }; }"
+    },
+    {
+      "step": 2,
+      "name": "check_bronze_schemas",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW SCHEMAS LIKE '%bronze%'",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const queryStatus = responseData.status?.state || 'UNKNOWN'; const dataArray = responseData.result?.data_array || []; const foundBronzeSchemas = dataArray.length; const bronzeSchemaNames = dataArray.map(row => row[0] || ''); logger.debug('Bronze schemas check:', { queryStatus, foundBronzeSchemas, bronzeSchemaNames }); return { ...currentVariables, schemas_query_status: queryStatus, found_bronze_schemas: foundBronzeSchemas, bronze_schema_names: bronzeSchemaNames }; }"
+    },
+    {
+      "step": 3,
+      "name": "check_all_schemas",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW SCHEMAS",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const queryStatus = responseData.status?.state || 'UNKNOWN'; const dataArray = responseData.result?.data_array || []; const totalSchemas = dataArray.length; const allSchemaNames = dataArray.map(row => row[0] || ''); const bronzeInAllSchemas = allSchemaNames.filter(name => name && name.toLowerCase().indexOf('bronze') !== -1).length; logger.debug('All schemas check:', { queryStatus, totalSchemas, bronzeInAllSchemas }); return { ...currentVariables, all_schemas_query_status: queryStatus, total_schemas: totalSchemas, all_schema_names: allSchemaNames, bronze_in_all_schemas: bronzeInAllSchemas }; }"
+    },
+    {
+      "step": 4,
+      "name": "check_bronze_tables",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT table_name, table_schema FROM information_schema.tables WHERE table_schema LIKE '%bronze%' LIMIT 5",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const queryStatus = responseData.status?.state || 'UNKNOWN'; const dataArray = responseData.result?.data_array || []; const foundBronzeTables = dataArray.length; const bronzeTableNames = dataArray.map(row => `${row[1] || ''}.${row[0] || ''}`); logger.debug('Bronze tables check:', { queryStatus, foundBronzeTables, bronzeTableNames }); return { ...currentVariables, tables_query_status: queryStatus, found_bronze_tables: foundBronzeTables, bronze_table_names: bronzeTableNames }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const locationsStep = stepResults.check_external_locations; const schemasStep = stepResults.check_bronze_schemas; const allSchemasStep = stepResults.check_all_schemas; const tablesStep = stepResults.check_bronze_tables; if (locationsStep.error || schemasStep.error || allSchemasStep.error || tablesStep.error) { return { status: 'fail', message: 'Failed to execute bronze layer validation queries', code: 'BRONZE_LAYER_QUERY_ERROR', test_id: 'OQ-102-1', title: 'Bronze Layer Location' }; } let foundLocations = 0; let locationUrls = []; let foundBronzeSchemas = 0; let bronzeSchemaNames = []; let totalSchemas = 0; let allSchemaNames = []; let foundBronzeTables = 0; let bronzeTableNames = []; if (locationsStep.data?.status?.state === 'SUCCEEDED') { const locationArray = locationsStep.data?.result?.data_array || []; if (locationArray.length > 0) { foundLocations = locationArray.length; locationUrls = locationArray.map(row => row[0] || ''); } } if (schemasStep.data?.status?.state === 'SUCCEEDED') { const schemaArray = schemasStep.data?.result?.data_array || []; if (schemaArray.length > 0) { foundBronzeSchemas = schemaArray.length; bronzeSchemaNames = schemaArray.map(row => row[0] || ''); } } if (allSchemasStep.data?.status?.state === 'SUCCEEDED') { const allSchemaArray = allSchemasStep.data?.result?.data_array || []; if (allSchemaArray.length > 0) { totalSchemas = allSchemaArray.length; allSchemaNames = allSchemaArray.map(row => row[0] || ''); let bronzeInAllSchemas = 0; for (let i = 0; i < allSchemaNames.length; i++) { if (allSchemaNames[i] && allSchemaNames[i].toLowerCase().indexOf('bronze') !== -1) { bronzeInAllSchemas++; } } if (bronzeInAllSchemas > 0 && foundBronzeSchemas === 0) { foundBronzeSchemas = bronzeInAllSchemas; } } } if (tablesStep.data?.status?.state === 'SUCCEEDED') { const tableArray = tablesStep.data?.result?.data_array || []; if (tableArray.length > 0) { foundBronzeTables = tableArray.length; bronzeTableNames = tableArray.map(row => `${row[1] || ''}.${row[0] || ''}`); } } if (foundLocations > 0) { return { status: 'pass', message: `Found ${foundLocations} external locations for bronze layer`, code: 'BronzeLocation_OK', test_id: 'OQ-102-1', title: 'Bronze Layer Location' }; } else if (foundBronzeSchemas > 0) { return { status: 'pass', message: `No external location found for bronze layer, but ${foundBronzeSchemas} bronze schemas exist`, code: 'BronzeLocation_SCHEMAS_ONLY', test_id: 'OQ-102-1', title: 'Bronze Layer Location' }; } else if (foundBronzeTables > 0) { return { status: 'pass', message: `No bronze schemas found directly, but ${foundBronzeTables} bronze tables exist in other schemas`, code: 'BronzeLocation_TABLES_ONLY', test_id: 'OQ-102-1', title: 'Bronze Layer Location' }; } else { const errorDetails = []; if (locationsStep.data?.status?.state !== 'SUCCEEDED') { errorDetails.push('External locations query failed'); } if (schemasStep.data?.status?.state !== 'SUCCEEDED') { errorDetails.push('Bronze schemas query failed'); } if (tablesStep.data?.status?.state !== 'SUCCEEDED') { errorDetails.push('Bronze tables query failed'); } const errorMsg = errorDetails.length > 0 ? ` (${errorDetails.join(', ')})` : ''; return { status: 'fail', message: `No external locations, schemas, or tables found for bronze layer${errorMsg}`, code: 'BronzeLocation_NOT_FOUND', test_id: 'OQ-102-1', title: 'Bronze Layer Location' }; } }"
+} 

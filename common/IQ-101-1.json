@@ -1,0 +1,27 @@
+{
+  "title": "Workspace accessibility",
+  "test_description": "Validate that the Databricks workspace is accessible",
+  "test_code": "IQ-101-1",
+  "test_seq": 1,
+  "test_suite": "IQ-101",
+  "test_suite_title": "Databricks Workspace Setup",
+  "category": "IQ",
+  "version": "1.0",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_workspace_list",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/workspace/list",
+      "headers": {
+        "Authorization": "Bearer ${token}"
+      },
+      "payload": {
+        "path": "/"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const workspaceStep = stepResults.get_workspace_list; if (workspaceStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-101-1', title: 'Workspace accessibility' }; } const apiOutput = workspaceStep.data; if (apiOutput.objects && Array.isArray(apiOutput.objects)) { const validObjects = apiOutput.objects.every(obj => { return obj.object_id !== undefined && typeof obj.object_type === 'string' && typeof obj.path === 'string'; }); if (validObjects) { return { status: 'pass', message: 'Workspace is accessible', code: 'HTTP_200_RESPONSE', test_id: 'IQ-101-1', title: 'Workspace accessibility' }; } else { return { status: 'fail', message: 'Some workspace objects are missing required fields', code: 'INVALID_OBJECT_FORMAT', test_id: 'IQ-101-1', title: 'Workspace accessibility' }; } } else { return { status: 'fail', message: 'Workspace response is not in expected format', code: 'INVALID_RESPONSE_FORMAT', test_id: 'IQ-101-1', title: 'Workspace accessibility' }; } }"
+}

@@ -1,0 +1,25 @@
+{
+  "title": "Runtime Validation",
+  "test_description": "Validate Databricks runtime version to ensure LTS version is used",
+  "version": "1.0",
+  "test_code": "IQ-101-2",
+  "test_seq": 2,
+  "test_suite": "IQ-101",
+  "test_suite_title": "Databricks Workspace Setup",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_clusters",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.1/clusters/list",
+      "headers": {
+        "Authorization": "Bearer ${token}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const clustersStep = stepResults.get_clusters; if (clustersStep.error) { return { status: 'fail', message: 'Missing clusters information in response', code: 'INVALID_RESPONSE', test_id: 'IQ-101-2', title: 'Runtime Validation' }; } const apiOutput = clustersStep.data; if (!apiOutput || !apiOutput.clusters || !Array.isArray(apiOutput.clusters)) { return { status: 'fail', message: 'Missing clusters information in response', code: 'INVALID_RESPONSE', test_id: 'IQ-101-2', title: 'Runtime Validation' }; } const clusters = apiOutput.clusters; for (const cluster of clusters) { const sparkVersion = cluster.spark_version || ''; if (sparkVersion.includes('16.4')) { return { status: 'pass', message: 'DBR 16.4.x found', code: 'EXACT_MATCH', test_id: 'IQ-101-2', title: 'Runtime Validation' }; } } for (const cluster of clusters) { const sparkVersion = cluster.spark_version || ''; if (sparkVersion.includes('LTS')) { return { status: 'pass', message: 'LTS version found: ' + sparkVersion, code: 'LTS_MATCH', test_id: 'IQ-101-2', title: 'Runtime Validation' }; } } return { status: 'fail', message: 'No LTS runtime found', code: 'NO_LTS', test_id: 'IQ-101-2', title: 'Runtime Validation' }; }"
+}

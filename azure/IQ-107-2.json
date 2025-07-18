@@ -1,0 +1,38 @@
+{
+  "title": "Security Groups - Port Validation",
+  "test_description": "Validate Network Security Group (NSG) rules to ensure only ports 443 (HTTPS) and 3306 (MySQL) are open for inbound traffic, maintaining proper security posture",
+  "version": "1.0",
+  "test_code": "IQ-107-2",
+  "test_seq": 2,
+  "test_suite": "IQ-107",
+  "test_suite_title": "Network Configuration",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_workspace_managed_rg",
+      "method": "GET",
+      "api_url": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Databricks/workspaces/${workspace_name}?api-version=2023-02-01",
+      "headers": {
+        "Authorization": "Bearer ${azure_token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { let managedResourceGroup = responseData?.properties?.managedResourceGroupId; if (!managedResourceGroup) { managedResourceGroup = '/subscriptions/' + currentVariables.subscription_id + '/resourceGroups/' + currentVariables.resource_group; } let effectiveResourceGroup = managedResourceGroup; if (managedResourceGroup.includes('/')) { effectiveResourceGroup = managedResourceGroup.split('/').pop(); } else { effectiveResourceGroup = currentVariables.resource_group; } logger.debug('Extracted effective_resource_group:', effectiveResourceGroup); return { ...currentVariables, managed_resource_group: managedResourceGroup, effective_resource_group: effectiveResourceGroup }; }"
+    },
+    {
+      "step": 2,
+      "name": "get_nsg_rules",
+      "method": "GET", 
+      "api_url": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${effective_resource_group}/providers/Microsoft.Network/networkSecurityGroups/${nsg_name}?api-version=2022-09-01",
+      "headers": {
+        "Authorization": "Bearer ${azure_token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const securityRules = responseData?.properties?.securityRules || []; const nsgName = responseData?.name || currentVariables.nsg_name; logger.debug('Found security rules:', securityRules.length); return { ...currentVariables, security_rules: securityRules, nsg_name: nsgName }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const workspaceStep = stepResults.get_workspace_managed_rg; const nsgStep = stepResults.get_nsg_rules; if (workspaceStep.error) { return { status: 'fail', message: 'Failed to get workspace managed resource group information', code: 'WORKSPACE_RG_FAILED', test_id: 'IQ-107-2', title: 'Security Groups - Port Validation' }; } if (nsgStep.error) { return { status: 'fail', message: 'Failed to get NSG rules information', code: 'NSG_RULES_FAILED', test_id: 'IQ-107-2', title: 'Security Groups - Port Validation' }; } const effectiveResourceGroup = workspaceStep.data?.properties?.managedResourceGroupId?.split('/').pop() || 'unknown'; const securityRules = nsgStep.data?.properties?.securityRules || []; let openPorts = new Set(); const allowedPorts = new Set([443, 3306]); const ruleDetails = []; let hasWildcardRule = false; if (nsgStep.status !== 200) { let errorMessage = 'Failed to retrieve NSG information'; if (nsgStep.status === 404) { errorMessage = `NSG not found in resource group '${effectiveResourceGroup}'`; } else if (nsgStep.status === 403) { errorMessage = 'Permission denied accessing NSG resources'; } else { errorMessage = `API error: ${nsgStep.status}`; } return { status: 'fail', message: errorMessage, code: 'API_ERROR', test_id: 'IQ-107-2', title: 'Security Groups - Port Validation' }; } securityRules.forEach((rule, index) => { const ruleName = rule.name || `rule_${index}`; const props = rule.properties || {}; const access = props.access || ''; const direction = props.direction || ''; const destinationPortRange = props.destinationPortRange || ''; const protocol = props.protocol || ''; if (access === 'Allow' && direction === 'Inbound') { ruleDetails.push(`${ruleName}: ${access} ${direction} ${destinationPortRange} (${protocol})`); if (destinationPortRange) { if (destinationPortRange === '*') { hasWildcardRule = true; openPorts.add('ALL_PORTS'); } else if (destinationPortRange.includes(',')) { const ports = destinationPortRange.split(',').map(p => p.trim()); ports.forEach(portStr => { if (/^\\d+$/.test(portStr)) { const port = parseInt(portStr); openPorts.add(port); } }); } else if (/^\\d+$/.test(destinationPortRange)) { const port = parseInt(destinationPortRange); openPorts.add(port); } else if (destinationPortRange.includes('-')) { const rangeParts = destinationPortRange.split('-'); if (rangeParts.length === 2) { const startPort = parseInt(rangeParts[0].trim()); const endPort = parseInt(rangeParts[1].trim()); if (!isNaN(startPort) && !isNaN(endPort)) { if (endPort - startPort <= 1000) { for (let port = startPort; port <= endPort; port++) { openPorts.add(port); } } else { openPorts.add(`RANGE_${startPort}_${endPort}`); } } } } } } }); const openPortsArray = Array.from(openPorts).filter(port => typeof port === 'number').sort((a, b) => a - b); const specialRules = Array.from(openPorts).filter(port => typeof port === 'string'); let hasUnauthorizedAccess = false; if (hasWildcardRule || specialRules.some(rule => rule.startsWith('RANGE_'))) { hasUnauthorizedAccess = true; } else { const unauthorizedPorts = openPortsArray.filter(port => !allowedPorts.has(port)); if (unauthorizedPorts.length > 0) { hasUnauthorizedAccess = true; } } let displayPorts = []; if (hasWildcardRule) { displayPorts = ['ALL_PORTS']; } else { displayPorts = [...openPortsArray.slice(0, 20)]; if (openPortsArray.length > 20) { displayPorts.push(`... and ${openPortsArray.length - 20} more`); } displayPorts = displayPorts.concat(specialRules); } if (hasUnauthorizedAccess) { return { status: 'fail', message: 'More than 2 ports are open. Only 443 and 3306 should be open.', code: 'NSG_FAIL', test_id: 'IQ-107-2', title: 'Security Groups - Port Validation' }; } else if (openPortsArray.length === 0 && specialRules.length === 0) { return { status: 'pass', message: 'No inbound ports are open. Network security is properly configured.', code: 'NSG_OK', test_id: 'IQ-107-2', title: 'Security Groups - Port Validation' }; } else { return { status: 'pass', message: 'Only authorized ports 443 and 3306 are open. Network security requirements met.', code: 'NSG_OK', test_id: 'IQ-107-2', title: 'Security Groups - Port Validation' }; } }"
+} 

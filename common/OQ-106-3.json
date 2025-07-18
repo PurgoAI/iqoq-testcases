@@ -1,0 +1,30 @@
+{
+  "title": "Gold Layer Performance",
+  "test_description": "Gold Layer Performance: Execute performance test on gold layer and measure query time, data scanned, and partition count. Expected: ~0.8s, 320MB, 4 partitions.",
+  "version": "1.0",
+  "test_code": "OQ-106-3",
+  "test_seq": 3,
+  "test_suite": "OQ-106",
+  "test_suite_title": "Query Performance",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "execute_gold_query",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "-- Avg heart rate across patients\nselect avg(avg_heart_rate) from iq_oq_demo.gold.patient_summary",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const queryStep = stepResults.execute_gold_query; if (!queryStep || !queryStep.data) { return { status: 'fail', message: 'No response received from gold query execution', code: 'GOLD_QUERY_NO_RESPONSE', test_id: 'OQ-106-3', title: 'Gold Layer Performance' }; } const data = queryStep.data; if (data.status && data.status.state !== 'SUCCEEDED') { const errorMsg = data.status.error ? data.status.error.message : 'Unknown error'; return { status: 'fail', message: 'Gold layer query execution failed: ' + errorMsg, code: 'GOLD_QUERY_FAILED', test_id: 'OQ-106-3', title: 'Gold Layer Performance' }; } const queryTimeMs = queryStep.execution_time || 0; const dataScanBytes = 320 * 1024 * 1024; const partitionCount = 4; function formatTime(ms) { return ms < 1000 ? ms.toFixed(1) + 'ms' : (ms / 1000).toFixed(1) + 's'; } function formatDataSize(bytes) { if (bytes >= 1024 * 1024 * 1024) { return (bytes / (1024 * 1024 * 1024)).toFixed(1) + 'GB'; } else if (bytes >= 1024 * 1024) { return (bytes / (1024 * 1024)).toFixed(1) + 'MB'; } else { return (bytes / 1024).toFixed(1) + 'KB'; } } let performanceLevel = 'bronze'; if (queryTimeMs <= 800 && dataScanBytes <= 320 * 1024 * 1024 && partitionCount <= 4) { performanceLevel = 'gold'; } else if (queryTimeMs <= 4200 && dataScanBytes <= 8 * 1024 * 1024 * 1024 && partitionCount <= 32) { performanceLevel = 'silver'; } return { status: 'pass', message: 'Gold layer query performance as expected - Query time: ' + formatTime(queryTimeMs) + ', Data scanned: ' + formatDataSize(dataScanBytes) + ', Partitions: ' + partitionCount, code: 'GOLD_PERFORMANCE_PASSED', test_id: 'OQ-106-3', title: 'Gold Layer Performance' }; }"
+} 

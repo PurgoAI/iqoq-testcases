@@ -1,0 +1,30 @@
+{
+  "title": "Metastore linkage",
+  "test_description": "Validate Metastore linkage with Azure AD integration",
+  "version": "1.0",
+  "test_code": "IQ-102-1",
+  "test_seq": 1,
+  "test_suite": "IQ-102",
+  "test_suite_title": "Unity Catalog Configuration",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_metastore",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "warehouse_id": "${warehouse_id}",
+        "statement": "SELECT CURRENT_METASTORE() AS active_metastore",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const metastoreStep = stepResults.get_metastore; if (metastoreStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-1', title: 'Metastore linkage' }; } const apiOutput = metastoreStep.data; let metastoreValue = null; if (apiOutput.results && apiOutput.results.data && apiOutput.results.data.length > 0) { metastoreValue = apiOutput.results.data[0][0]; } else if (apiOutput.result && apiOutput.result.data_array && apiOutput.result.data_array.length > 0 && apiOutput.result.data_array[0].length > 0) { metastoreValue = apiOutput.result.data_array[0][0]; } else if (apiOutput.manifest && apiOutput.manifest.results && apiOutput.manifest.results.length > 0 && 'active_metastore' in apiOutput.manifest.results[0]) { metastoreValue = apiOutput.manifest.results[0].active_metastore; } if (metastoreValue) { return { status: 'pass', message: 'Metastore found and linked: ' + metastoreValue, code: 'METASTORE_LINKED', test_id: 'IQ-102-1', title: 'Metastore linkage' }; } else { return { status: 'fail', message: 'SQL query for metastore returned data but could not extract metastore value', code: 'NO_METASTORES', test_id: 'IQ-102-1', title: 'Metastore linkage' }; } }"
+}

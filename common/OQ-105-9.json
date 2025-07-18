@@ -1,0 +1,58 @@
+{
+  "title": "Authorization Access (Direct) - Revoke",
+  "test_description": "Authorization Access (Direct) - Revoke: Revoke SELECT permission directly from user2 and verify user2 can no longer SELECT from the table.",
+  "version": "1.0",
+  "test_code": "OQ-105-9",
+  "test_seq": 9,
+  "test_suite": "OQ-105",
+  "test_suite_title": "Data Governance",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_current_user",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const userEmail = responseData.userName || responseData.emails?.[0]?.value || 'test-user@purgo.ai'; return { ...currentVariables, target_user_email: userEmail }; }"
+    },
+    {
+      "step": 2,
+      "name": "revoke_select_from_user",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "REVOKE SELECT ON TABLE iq_oq_demo.silver.sdtm_dm FROM `${target_user_email}`",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 3,
+      "name": "test_select_access",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const revokeStep = stepResults.revoke_select_from_user; const accessStep = stepResults.test_select_access; if (!revokeStep || !revokeStep.data || revokeStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (revokeStep && revokeStep.data && revokeStep.data.status && revokeStep.data.status.error) { errorMsg = revokeStep.data.status.error.message || revokeStep.data.status.error; } return { status: 'fail', message: 'Failed to revoke SELECT permission from user: ' + errorMsg, code: 'REVOKE_SELECT_USER_FAILED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke' }; } const data = accessStep.data; if (data && data.status && data.status.state === 'FAILED') { const errorMsg = data.status.error ? data.status.error.message : ''; if (errorMsg && (errorMsg.indexOf('permission') !== -1 || errorMsg.indexOf('Permission') !== -1 || errorMsg.indexOf('PERMISSION') !== -1 || errorMsg.indexOf('access') !== -1 || errorMsg.indexOf('Access') !== -1 || errorMsg.indexOf('ACCESS') !== -1 || errorMsg.indexOf('denied') !== -1 || errorMsg.indexOf('Denied') !== -1 || errorMsg.indexOf('DENIED') !== -1 || errorMsg.indexOf('Forbidden') !== -1 || errorMsg.indexOf('FORBIDDEN') !== -1 || errorMsg.indexOf('forbidden') !== -1)) { return { status: 'pass', message: 'Authorization validation passed: User2 SELECT access properly denied after direct revoke', code: 'AUTH_ACCESS_DIRECT_REVOKE_PASSED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke' }; } } return { status: 'fail', message: 'Authorization validation failed: User2 SELECT access was not revoked directly', code: 'AUTH_ACCESS_DIRECT_REVOKE_FAILED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke' }; }"
+} 

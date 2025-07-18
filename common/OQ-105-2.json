@@ -1,0 +1,43 @@
+{
+  "title": "Authorization - Create Group",
+  "test_description": "Authorization - Create Group: Create a temporary group called TEMP_GROUP_OQ104 for testing authorization. Group creation must succeed.",
+  "version": "1.0",
+  "test_code": "OQ-105-2",
+  "test_seq": 2,
+  "test_suite": "OQ-105",
+  "test_suite_title": "Data Governance",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_existing_group",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Groups",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "filter": "displayName eq \"TEMP_GROUP_OQ104\""
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 2,
+      "name": "create_group",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Groups",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "displayName": "TEMP_GROUP_OQ104",
+        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"]
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const createStep = stepResults.create_group; let groupExists = false; let groupId = null; if (checkStep && checkStep.status === 200 && checkStep.data && checkStep.data.Resources) { const resources = checkStep.data.Resources; if (resources.length > 0) { groupExists = true; groupId = resources[0].id; } } if (groupExists) { return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + groupId + ') - Group already existed', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group' }; } if (createStep && createStep.status === 201 && createStep.data && createStep.data.id) { groupId = createStep.data.id; return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + groupId + ')', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group' }; } else if (createStep && createStep.status === 409) { return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 - Group already existed', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group' }; } else { let errorMsg = 'Unknown error'; if (createStep && createStep.data && createStep.data.detail) { errorMsg = createStep.data.detail; } else if (createStep && createStep.data && createStep.data.message) { errorMsg = createStep.data.message; } return { status: 'fail', message: 'Failed to create group: ' + errorMsg, code: 'GROUP_CREATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group' }; } }"
+} 

@@ -1,0 +1,38 @@
+{
+  "title": "Component Requirement Actual Pass/Fail",
+  "test_description": "Validate that there are at least 3 subnets with /24 CIDR in the Azure Virtual Network to ensure proper network segmentation and compliance requirements",
+  "version": "1.0",
+  "test_code": "IQ-107-1",
+  "test_seq": 1,
+  "test_suite": "IQ-107",
+  "test_suite_title": "Network Configuration",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_workspace_managed_rg",
+      "method": "GET",
+      "api_url": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Databricks/workspaces/${workspace_name}?api-version=2023-02-01",
+      "headers": {
+        "Authorization": "Bearer ${azure_token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { let managedResourceGroup = responseData?.properties?.managedResourceGroupId; if (!managedResourceGroup) { managedResourceGroup = '/subscriptions/' + currentVariables.subscription_id + '/resourceGroups/' + currentVariables.resource_group; } let effectiveResourceGroup = managedResourceGroup; if (managedResourceGroup.includes('/')) { effectiveResourceGroup = managedResourceGroup.split('/').pop(); } else { effectiveResourceGroup = currentVariables.resource_group; } logger.debug('Extracted effective_resource_group:', effectiveResourceGroup); return { ...currentVariables, managed_resource_group: managedResourceGroup, effective_resource_group: effectiveResourceGroup }; }"
+    },
+    {
+      "step": 2,
+      "name": "get_vnet_subnets",
+      "method": "GET", 
+      "api_url": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${effective_resource_group}/providers/Microsoft.Network/virtualNetworks/${vnet_name}/subnets?api-version=2022-09-01",
+      "headers": {
+        "Authorization": "Bearer ${azure_token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const subnetsData = responseData?.value || []; const subnetCount = subnetsData.length || 0; logger.debug('Found subnets:', subnetCount); return { ...currentVariables, subnet_count: subnetCount, subnets_data: subnetsData }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const workspaceStep = stepResults.get_workspace_managed_rg; const subnetStep = stepResults.get_vnet_subnets; if (workspaceStep.error) { return { status: 'fail', message: 'Failed to get workspace managed resource group information', code: 'WORKSPACE_RG_FAILED', test_id: 'IQ-107-1', title: 'Component Requirement Actual Pass/Fail' }; } if (subnetStep.error) { return { status: 'fail', message: 'Failed to get VNet subnets information', code: 'VNET_SUBNETS_FAILED', test_id: 'IQ-107-1', title: 'Component Requirement Actual Pass/Fail' }; } const effectiveResourceGroup = workspaceStep.data?.properties?.managedResourceGroupId?.split('/').pop() || 'unknown'; const subnetsData = subnetStep.data?.value || []; const totalSubnets = subnetsData.length; let subnetCount24 = 0; const validationDetails = []; if (subnetStep.status !== 200) { let errorMessage = 'Failed to retrieve subnet information'; if (subnetStep.status === 404) { errorMessage = `VNet not found in resource group '${effectiveResourceGroup}'`; } else if (subnetStep.status === 403) { errorMessage = 'Permission denied accessing network resources'; } else { errorMessage = `API error: ${subnetStep.status}`; } return { status: 'fail', message: errorMessage, code: 'API_ERROR', test_id: 'IQ-107-1', title: 'Component Requirement Actual Pass/Fail' }; } subnetsData.forEach((subnet, index) => { const subnetName = subnet.name || `subnet_${index}`; const addressPrefix = subnet.properties?.addressPrefix || ''; if (addressPrefix.includes('/24')) { subnetCount24++; validationDetails.push(`${subnetName}: ${addressPrefix} (valid /24 CIDR)`); } else { validationDetails.push(`${subnetName}: ${addressPrefix} (not /24 CIDR)`); } }); const required = 3; if (subnetCount24 >= required) { return { status: 'pass', message: `Found ${subnetCount24} subnets with /24 CIDR. Network segmentation requirements met.`, code: 'SUBNETS_OK', test_id: 'IQ-107-1', title: 'Component Requirement Actual Pass/Fail' }; } else { return { status: 'fail', message: `Only ${subnetCount24} subnets with /24 CIDR found. ${required} required for compliance.`, code: 'SUBNETS_FAIL', test_id: 'IQ-107-1', title: 'Component Requirement Actual Pass/Fail' }; } }"
+} 

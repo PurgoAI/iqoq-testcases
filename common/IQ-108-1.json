@@ -1,0 +1,43 @@
+{
+  "title": "Git Credential Creation",
+  "test_description": "Create Git credentials and validate successful creation",
+  "version": "1.0",
+  "test_code": "IQ-108-1",
+  "test_seq": 1,
+  "test_suite": "IQ-108",
+  "test_suite_title": "Git Connection Validation",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_existing_credentials",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const existingCredentials = responseData?.credentials || []; let credentialExists = false; let existingCredentialId = null; const gitProvider = currentVariables.git_provider || 'gitHub'; const gitUsername = currentVariables.git_username; for (let i = 0; i < existingCredentials.length; i++) { const cred = existingCredentials[i]; if (cred && cred.git_provider && cred.git_provider.toLowerCase() === gitProvider.toLowerCase() && cred.git_username === gitUsername) { credentialExists = true; existingCredentialId = cred.credential_id; break; } } if (!existingCredentialId && existingCredentials.length > 0) { existingCredentialId = existingCredentials[0].credential_id; } logger.debug('Credential check:', { credentialExists, existingCredentialId, credentialsCount: existingCredentials.length }); return { ...currentVariables, credential_exists: credentialExists, existing_credential_id: existingCredentialId, credentials_count: existingCredentials.length }; }"
+    },
+    {
+      "step": 2,
+      "name": "create_git_credentials",
+      "condition": "!credential_exists",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "git_provider": "${git_provider}",
+        "git_username": "${git_username}",
+        "personal_access_token": "${personal_access_token}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const credentialId = responseData?.credential_id || null; const success = responseData && !responseData.error_code; logger.debug('Credential creation:', { success, credentialId }); return { ...currentVariables, credential_created: success, new_credential_id: credentialId, creation_result: responseData }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_credentials; const createStep = stepResults.create_git_credentials; if (checkStep.error) { return { status: 'fail', message: 'Failed to check existing Git credentials', code: 'GIT_CREDS_CHECK_FAILED', test_id: 'IQ-108-1', title: 'Git Credential Creation' }; } const gitProvider = variables?.git_provider || 'gitHub'; const gitUsername = variables?.git_username || 'unknown'; const existingCredentials = checkStep.data?.credentials || []; let credentialExists = false; let existingCredentialId = null; const credentialsCount = existingCredentials.length; for (let i = 0; i < existingCredentials.length; i++) { const cred = existingCredentials[i]; if (cred && cred.git_provider && cred.git_provider.toLowerCase() === gitProvider.toLowerCase() && cred.git_username === gitUsername) { credentialExists = true; existingCredentialId = cred.credential_id; break; } } if (!existingCredentialId && existingCredentials.length > 0) { existingCredentialId = existingCredentials[0].credential_id; } if (credentialExists) { return { status: 'pass', message: 'Git credentials already exist and are properly configured', code: 'GIT_CREDS_EXIST', test_id: 'IQ-108-1', title: 'Git Credential Creation' }; } if (createStep && createStep.error) { return { status: 'fail', message: 'Failed to create Git credentials', code: 'GIT_CREDS_CREATE_FAILED', test_id: 'IQ-108-1', title: 'Git Credential Creation' }; } if (createStep && createStep.status !== 200) { let errorMessage = 'Git credential creation failed'; if (createStep.status === 403) { errorMessage = 'Permission denied creating Git credentials'; } else if (createStep.status === 400) { errorMessage = 'Invalid Git credential configuration'; } else { errorMessage = `API error: ${createStep.status}`; } return { status: 'fail', message: errorMessage, code: 'API_ERROR', test_id: 'IQ-108-1', title: 'Git Credential Creation' }; } if (createStep && createStep.data) { const newCredentialId = createStep.data.credential_id; const success = createStep.data && !createStep.data.error_code; if (success && newCredentialId) { return { status: 'pass', message: 'Git credentials created successfully', code: 'GIT_CREDS_CREATED', test_id: 'IQ-108-1', title: 'Git Credential Creation' }; } } return { status: 'fail', message: 'Git credential creation failed - no credentials available', code: 'GIT_CREDS_FAILED', test_id: 'IQ-108-1', title: 'Git Credential Creation' }; }"
+} 

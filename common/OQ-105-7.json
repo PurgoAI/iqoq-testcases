@@ -1,0 +1,30 @@
+{
+  "title": "Authorization Access (Direct) - Negative",
+  "test_description": "Authorization Access (Direct) - Negative: Test that user2 cannot SELECT from a different table without any permissions. Access should fail with permission error.",
+  "version": "1.0",
+  "test_code": "OQ-105-7",
+  "test_seq": 7,
+  "test_suite": "OQ-105",
+  "test_suite_title": "Data Governance",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "test_unauthorized_table_access",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT * FROM iq_oq_demo.gold.patient_summary LIMIT 5",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const accessStep = stepResults.test_unauthorized_table_access; if (!accessStep || !accessStep.data) { return { status: 'fail', message: 'No response received from table access test', code: 'AUTH_ACCESS_DIRECT_NEGATIVE_NO_RESPONSE', test_id: 'OQ-105-7', title: 'Authorization Access (Direct) - Negative' }; } const data = accessStep.data; if (data.status && data.status.state === 'FAILED') { const errorMsg = data.status.error ? data.status.error.message : ''; if (errorMsg && (errorMsg.indexOf('permission') !== -1 || errorMsg.indexOf('Permission') !== -1 || errorMsg.indexOf('PERMISSION') !== -1 || errorMsg.indexOf('access') !== -1 || errorMsg.indexOf('Access') !== -1 || errorMsg.indexOf('ACCESS') !== -1 || errorMsg.indexOf('denied') !== -1 || errorMsg.indexOf('Denied') !== -1 || errorMsg.indexOf('DENIED') !== -1 || errorMsg.indexOf('Forbidden') !== -1 || errorMsg.indexOf('FORBIDDEN') !== -1 || errorMsg.indexOf('forbidden') !== -1 || errorMsg.indexOf('INSUFFICIENT_PRIVILEGES') !== -1 || errorMsg.indexOf('privileges') !== -1 || errorMsg.indexOf('Privileges') !== -1)) { return { status: 'pass', message: 'Authorization validation passed: User2 access properly denied to iq_oq_demo.gold.patient_summary', code: 'AUTH_ACCESS_DIRECT_NEGATIVE_PASSED', test_id: 'OQ-105-7', title: 'Authorization Access (Direct) - Negative' }; } else { return { status: 'fail', message: 'Query failed but not due to permission error: ' + errorMsg, code: 'AUTH_ACCESS_DIRECT_NEGATIVE_UNEXPECTED_ERROR', test_id: 'OQ-105-7', title: 'Authorization Access (Direct) - Negative' }; } } else if (data.status && data.status.state === 'SUCCEEDED') { return { status: 'fail', message: 'Authorization validation failed: User2 access was not denied to iq_oq_demo.gold.patient_summary', code: 'AUTH_ACCESS_DIRECT_NEGATIVE_FAILED', test_id: 'OQ-105-7', title: 'Authorization Access (Direct) - Negative' }; } else { return { status: 'fail', message: 'Failed to execute table access test query', code: 'AUTH_ACCESS_DIRECT_NEGATIVE_ERROR', test_id: 'OQ-105-7', title: 'Authorization Access (Direct) - Negative' }; } }"
+} 

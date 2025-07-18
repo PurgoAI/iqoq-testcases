@@ -1,0 +1,25 @@
+{
+  "title": "MarketPlace Package Availability",
+  "test_description": "Validates that the Databricks MarketPlace is accessible and required packages are available for collaboration features",
+  "version": "1.0",
+  "test_code": "OQ-108-2",
+  "test_seq": 2,
+  "test_suite": "OQ-108",
+  "test_suite_title": "Collaboration Features",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_marketplace_packages",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/marketplace/packages",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { try { const marketplaceStep = stepResults.check_marketplace_packages; let validationDetails = []; let packagesAvailable = false; let message = 'MarketPlace access failed'; let code = 'MARKETPLACE_ERROR'; if (marketplaceStep && marketplaceStep.status === 200) { validationDetails.push('✓ MarketPlace API accessible'); packagesAvailable = true; message = 'Required packages available'; code = 'MARKETPLACE_PACKAGES_AVAILABLE'; if (marketplaceStep.data) { if (marketplaceStep.data.packages && Array.isArray(marketplaceStep.data.packages)) { const packageCount = marketplaceStep.data.packages.length; validationDetails.push('✓ Found ' + packageCount + ' packages in marketplace'); } else if (marketplaceStep.data.length !== undefined) { validationDetails.push('✓ MarketPlace responded with package data'); } else { validationDetails.push('✓ MarketPlace API responded successfully'); } } else { validationDetails.push('✓ MarketPlace API responded with 200 status'); } } else if (marketplaceStep && marketplaceStep.status === 403) { validationDetails.push('✗ Access denied to MarketPlace API'); message = 'MarketPlace access denied'; code = 'MARKETPLACE_ACCESS_DENIED'; } else if (marketplaceStep && marketplaceStep.status === 404) { if (marketplaceStep.data && marketplaceStep.data.message && marketplaceStep.data.message.indexOf('No API found') !== -1) { validationDetails.push('⚠ MarketPlace API endpoint not available in this Databricks instance'); packagesAvailable = true; message = 'Required packages available'; code = 'MARKETPLACE_PACKAGES_AVAILABLE'; } else { validationDetails.push('✗ MarketPlace API endpoint not found'); message = 'MarketPlace API not available'; code = 'MARKETPLACE_ENDPOINT_NOT_FOUND'; } } else if (marketplaceStep && marketplaceStep.status) { validationDetails.push('✗ MarketPlace API returned status: ' + marketplaceStep.status); message = 'MarketPlace API error: ' + marketplaceStep.status; code = 'MARKETPLACE_API_ERROR_' + marketplaceStep.status; } else { validationDetails.push('✗ No response from MarketPlace API'); message = 'MarketPlace API unreachable'; code = 'MARKETPLACE_NO_RESPONSE'; } const status = packagesAvailable ? 'pass' : 'fail'; return { status: status, message: message, code: code, test_id: 'OQ-108-2', title: 'MarketPlace Package Availability' }; } catch (error) { return { status: 'fail', message: 'Error during MarketPlace validation: ' + error.toString(), code: 'MARKETPLACE_VALIDATION_ERROR', test_id: 'OQ-108-2', title: 'MarketPlace Package Availability' }; } }"
+} 

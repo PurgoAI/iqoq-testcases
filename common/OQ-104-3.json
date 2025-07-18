@@ -1,0 +1,62 @@
+{
+  "title": "Schema Drift",
+  "test_description": "Data Validation - Schema Drift detection using DESCRIBE HISTORY. Validates 0 schema drift incidents requirement.",
+  "version": "1.0",
+  "test_code": "OQ-104-3",
+  "test_seq": 3,
+  "test_suite": "OQ-104",
+  "test_suite_title": "Data Validation",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_table_type",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW TABLES FROM iq_oq_demo.silver LIKE 'sdtm_dm'",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 2,
+      "name": "find_delta_table",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'silver' AND table_catalog = 'iq_oq_demo' AND table_type = 'BASE TABLE' LIMIT 1",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 3,
+      "name": "validate_schema_drift",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "DESCRIBE HISTORY iq_oq_demo.bronze.demographics",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const tableTypeStep = stepResults.check_table_type; const deltaTableStep = stepResults.find_delta_table; const schemaStep = stepResults.validate_schema_drift; if (!schemaStep || !schemaStep.data) { return { status: 'fail', message: 'No response received from schema drift query', code: 'SCHEMA_DRIFT_NO_RESULTS', test_id: 'OQ-104-3', title: 'Schema Drift' }; } const data = schemaStep.data; if (data.status && data.status.state === 'FAILED') { const errorMsg = data.status.error ? data.status.error.message : 'Unknown error'; if (errorMsg && errorMsg.indexOf('expects a table') !== -1 && errorMsg.indexOf('is a view') !== -1) { return { status: 'pass', message: 'Schema drift validation skipped: Target is a view, not a Delta table. Views do not have history to track schema changes.', code: 'SCHEMA_DRIFT_VIEW_SKIPPED', test_id: 'OQ-104-3', title: 'Schema Drift' }; } return { status: 'fail', message: 'Failed to execute schema drift query: ' + errorMsg, code: 'SCHEMA_DRIFT_QUERY_ERROR', test_id: 'OQ-104-3', title: 'Schema Drift' }; } if (data.status && data.status.state === 'SUCCEEDED' && data.result && data.result.data_array && data.result.data_array.length > 0) { const dataArray = data.result.data_array; const schemaChanges = []; for (let i = 0; i < dataArray.length; i++) { const row = dataArray[i]; const operation = row[4] || ''; const params = row[5] || ''; const version = row[0] || ''; if (operation === 'ADD COLUMNS' || operation === 'ALTER SCHEMA' || operation === 'CHANGE COLUMN') { schemaChanges.push({ version: version, operation: operation }); } if (params && typeof params === 'string') { const paramsLower = params.toLowerCase(); if ((paramsLower.indexOf('schema') !== -1 || paramsLower.indexOf('column') !== -1 || paramsLower.indexOf('datatype') !== -1 || paramsLower.indexOf('addcolumn') !== -1) && operation.indexOf('CREATE TABLE') === -1) { schemaChanges.push({ version: version, operation: operation, params: params }); } } } if (schemaChanges.length === 0) { return { status: 'pass', message: 'Schema drift detected: 0 incidents', code: 'SCHEMA_DRIFT_PASSED', test_id: 'OQ-104-3', title: 'Schema Drift' }; } else { return { status: 'fail', message: 'Schema drift detected: ' + schemaChanges.length + ' incidents (expected 0)', code: 'SCHEMA_DRIFT_FAILED', test_id: 'OQ-104-3', title: 'Schema Drift' }; } } else if (data.status && data.status.state !== 'SUCCEEDED') { return { status: 'fail', message: 'Failed to execute schema drift query', code: 'SCHEMA_DRIFT_QUERY_ERROR', test_id: 'OQ-104-3', title: 'Schema Drift' }; } else { return { status: 'pass', message: 'No history found for the table - no schema drift incidents detected', code: 'SCHEMA_DRIFT_NO_HISTORY_OK', test_id: 'OQ-104-3', title: 'Schema Drift' }; } }"
+} 

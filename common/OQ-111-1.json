@@ -1,0 +1,83 @@
+{
+  "title": "Scalability Test",
+  "test_description": "Performs stress testing by launching multiple SQL queries and measuring performance metrics - matches Python ScalabilityUtils.validate_scalability_test() implementation",
+  "version": "1.0",
+  "test_code": "OQ-111-1",
+  "test_seq": 1,
+  "test_suite": "OQ-111",
+  "test_suite_title": "Scalability Test",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_initial_cluster_metrics",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/sql/warehouses/${warehouse_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const size = responseData.size || 'X-Small'; const sizeToWorkers = { '2X-SMALL': 1, 'X-SMALL': 1, 'SMALL': 2, 'MEDIUM': 4, 'LARGE': 8, 'X-LARGE': 16, '2X-LARGE': 32, '3X-LARGE': 64, '4X-LARGE': 128, '2X-Small': 1, 'X-Small': 1, 'Small': 2, 'Medium': 4, 'Large': 8, 'X-Large': 16, '2X-Large': 32, '3X-LARGE': 64, '4X-LARGE': 128 }; const initialWorkers = sizeToWorkers[size] || 1; return { ...currentVariables, initial_workers: initialWorkers, initial_size: size }; }"
+    },
+    {
+      "step": 2,
+      "name": "stress_query_1",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "select * from iq_oq_demo.silver.sdtm_dm",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const startTime = Date.now(); const status = responseData.status || {}; const state = status.state || 'UNKNOWN'; const success = state === 'SUCCEEDED'; const executionTime = (Date.now() - startTime) / 1000; let bytesProcessed = 0; if (success && responseData.result && responseData.result.data_array) { const rowCount = responseData.result.data_array.length; const avgFieldSize = 50; bytesProcessed = rowCount * avgFieldSize; } return { ...currentVariables, query_1_success: success, query_1_execution_time: executionTime, query_1_bytes: bytesProcessed }; }"
+    },
+    {
+      "step": 3,
+      "name": "stress_query_2",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "select * from iq_oq_demo.silver.sdtm_dm",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const startTime = Date.now(); const status = responseData.status || {}; const state = status.state || 'UNKNOWN'; const success = state === 'SUCCEEDED'; const executionTime = (Date.now() - startTime) / 1000; let bytesProcessed = 0; if (success && responseData.result && responseData.result.data_array) { const rowCount = responseData.result.data_array.length; const avgFieldSize = 50; bytesProcessed = rowCount * avgFieldSize; } return { ...currentVariables, query_2_success: success, query_2_execution_time: executionTime, query_2_bytes: bytesProcessed }; }"
+    },
+    {
+      "step": 4,
+      "name": "stress_query_3",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "select * from iq_oq_demo.silver.sdtm_dm",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const startTime = Date.now(); const status = responseData.status || {}; const state = status.state || 'UNKNOWN'; const success = state === 'SUCCEEDED'; const executionTime = (Date.now() - startTime) / 1000; let bytesProcessed = 0; if (success && responseData.result && responseData.result.data_array) { const rowCount = responseData.result.data_array.length; const avgFieldSize = 50; bytesProcessed = rowCount * avgFieldSize; } return { ...currentVariables, query_3_success: success, query_3_execution_time: executionTime, query_3_bytes: bytesProcessed }; }"
+    },
+    {
+      "step": 5,
+      "name": "get_final_cluster_metrics",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/sql/warehouses/${warehouse_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const size = responseData.size || 'X-Small'; const sizeToWorkers = { '2X-SMALL': 1, 'X-SMALL': 1, 'SMALL': 2, 'MEDIUM': 4, 'LARGE': 8, 'X-LARGE': 16, '2X-LARGE': 32, '3X-LARGE': 64, '4X-LARGE': 128, '2X-Small': 1, 'X-Small': 1, 'Small': 2, 'Medium': 4, 'Large': 8, 'X-Large': 16, '2X-Large': 32, '3X-LARGE': 64, '4X-LARGE': 128 }; const finalWorkers = sizeToWorkers[size] || 1; return { ...currentVariables, final_workers: finalWorkers, final_size: size }; }"
+    }
+  ],
+  "parser_code": "function aggregateResults(stepResults) { var queries = ['stress_query_1', 'stress_query_2', 'stress_query_3']; var totalQueries = queries.length; var successfulQueries = 0; var executionTimes = []; var totalBytesProcessed = 0; for (var i = 0; i < queries.length; i++) { var queryName = queries[i]; var queryResult = stepResults[queryName]; if (queryResult && queryResult.data && queryResult.data.status && queryResult.data.status.state === 'SUCCEEDED') { successfulQueries++; if (queryResult.data.result && queryResult.data.result.data_array) { var rowCount = queryResult.data.result.data_array.length; var avgFieldSize = 50; totalBytesProcessed += rowCount * avgFieldSize; } } } var successRate = totalQueries > 0 ? successfulQueries / totalQueries : 0; var avgExecutionTime = executionTimes.length > 0 ? executionTimes.reduce(function(a, b) { return a + b; }, 0) / executionTimes.length : 0; var initialMetrics = stepResults.get_initial_cluster_metrics; var finalMetrics = stepResults.get_final_cluster_metrics; var initialWorkers = 1; var finalWorkers = 1; if (initialMetrics && initialMetrics.data) { var initialSize = initialMetrics.data.size || 'X-Small'; var sizeToWorkers = { 'SMALL': 2, 'MEDIUM': 4, 'LARGE': 8, 'X-LARGE': 16 }; initialWorkers = sizeToWorkers[initialSize] || 1; } if (finalMetrics && finalMetrics.data) { var finalSize = finalMetrics.data.size || 'X-Small'; var sizeToWorkers = { 'SMALL': 2, 'MEDIUM': 4, 'LARGE': 8, 'X-LARGE': 16 }; finalWorkers = sizeToWorkers[finalSize] || 1; } var scaledWorkers = finalWorkers >= initialWorkers; var dataProcessed = '0.00 MB'; if (totalBytesProcessed > 1024 * 1024 * 1024) { dataProcessed = (totalBytesProcessed / (1024 * 1024 * 1024)).toFixed(2) + ' GB'; } else { dataProcessed = (totalBytesProcessed / (1024 * 1024)).toFixed(2) + ' MB'; } var successRateThreshold = 0.95; var overallStatus = 'pass'; var overallMessage = 'Scalability test passed: ' + successfulQueries + '/' + totalQueries + ' queries succeeded'; var overallCode = 'SCALABILITY_TEST_PASSED'; if (successRate < successRateThreshold) { if (successRate >= 0.8) { overallStatus = 'fail'; overallMessage = 'Scalability test failed: Only ' + successfulQueries + '/' + totalQueries + ' queries succeeded'; overallCode = 'SCALABILITY_TEST_FAILED'; } else { overallStatus = 'error'; overallMessage = 'Scalability test error: Critical failure with only ' + successfulQueries + '/' + totalQueries + ' queries succeeded'; overallCode = 'SCALABILITY_TEST_ERROR'; } } return { status: overallStatus, message: overallMessage, code: overallCode, test_id: 'OQ-111-1', title: 'Scalability Test' }; }"
+} 

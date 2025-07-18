@@ -1,0 +1,26 @@
+{
+  "title": "Credential rotation",
+  "test_description": "Validate credential rotation by testing with an expired token",
+  "version": "1.0",
+  "test_code": "IQ-102-2",
+  "test_seq": 2,
+  "test_suite": "IQ-102",
+  "test_suite_title": "Unity Catalog Configuration",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "test_invalid_token",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/unity-catalog/metastores",
+      "headers": {
+        "Authorization": "Bearer ${invalid_token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const tokenStep = stepResults.test_invalid_token; if (!tokenStep) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-2', title: 'Credential rotation' }; } const statusCode = tokenStep.status; if (statusCode === 401 || statusCode === 403) { return { status: 'pass', message: 'Credential rotation validated - expired token correctly rejected with ' + statusCode, code: 'TOKEN_VALIDATION_WORKING', test_id: 'IQ-102-2', title: 'Credential rotation' }; } else { return { status: 'fail', message: 'Credential validation failed - expired token accepted with status ' + statusCode, code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential rotation' }; } }"
+}

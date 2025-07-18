@@ -1,0 +1,25 @@
+{
+  "title": "Workspace ESC Enablement",
+  "test_description": "Validate if workspace ESC (Enhanced Security Controls) is enabled",
+  "version": "1.0",
+  "test_code": "IQ-101-4",
+  "test_seq": 4,
+  "test_suite": "IQ-101",
+  "test_suite_title": "Databricks Workspace Setup",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_workspace_esc",
+      "method": "GET",
+      "api_url": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Databricks/workspaces/${workspace_name}?api-version=2024-05-01",
+      "headers": {
+        "Authorization": "Bearer ${azure_token}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const escStep = stepResults.get_workspace_esc; if (escStep.error) { return { status: 'fail', message: 'No configuration data received from API', code: 'NO_RESPONSE', test_id: 'IQ-101-4', title: 'Workspace ESC Enablement' }; } const apiOutput = escStep.data; if (!apiOutput || Object.keys(apiOutput).length === 0) { return { status: 'fail', message: 'No configuration data received from API', code: 'NO_RESPONSE', test_id: 'IQ-101-4', title: 'Workspace ESC Enablement' }; } if (apiOutput.error) { return { status: 'fail', message: 'Azure API error: ' + apiOutput.error.code + ' - ' + (apiOutput.error.message || 'Unknown error'), code: apiOutput.error.code, test_id: 'IQ-101-4', title: 'Workspace ESC Enablement' }; } if (!apiOutput.properties) { return { status: 'fail', message: 'No properties found in Azure API response', code: 'MISSING_PROPERTIES', test_id: 'IQ-101-4', title: 'Workspace ESC Enablement' }; } if (!apiOutput.properties.enhancedSecurityCompliance) { return { status: 'fail', message: 'Enhanced Security Controls (ESC) settings not found in workspace properties', code: 'ESC_NOT_FOUND', test_id: 'IQ-101-4', title: 'Workspace ESC Enablement' }; } const esc = apiOutput.properties.enhancedSecurityCompliance; if (esc.complianceSecurityProfile && esc.complianceSecurityProfile.value === 'Enabled') { const complianceStandards = esc.complianceSecurityProfile.complianceStandards || []; const standardsStr = complianceStandards.length > 0 ? complianceStandards.join(', ') : 'None specified'; return { status: 'pass', message: 'ESC compliance is enabled (Standards: ' + standardsStr + ')', code: 'ESC_ENABLED', test_id: 'IQ-101-4', title: 'Workspace ESC Enablement' }; } else { return { status: 'fail', message: 'ESC compliance security profile is not enabled for this workspace', code: 'ESC_NOT_ENABLED', test_id: 'IQ-101-4', title: 'Workspace ESC Enablement' }; } }"
+}

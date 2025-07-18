@@ -1,0 +1,30 @@
+{
+  "title": "Unity Catalog Compatibility",
+  "test_description": "Test Unity Catalog compatibility - SHOW CATALOGS executes successfully. Command returns results without error.",
+  "version": "1.0",
+  "test_code": "OQ-101-3",
+  "test_seq": 3,
+  "test_suite": "OQ-101",
+  "test_suite_title": "Cluster Availability",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "execute_show_catalogs",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW CATALOGS",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const queryStatus = responseData.status ? responseData.status.state : 'UNKNOWN'; const dataArray = responseData.result ? responseData.result.data_array : []; const catalogCount = Array.isArray(dataArray) ? dataArray.length : 0; const catalogs = Array.isArray(dataArray) ? dataArray.map(row => row && row.length > 0 ? row[0] : 'Unknown').filter(name => name !== 'Unknown') : []; logger.debug('Unity Catalog query result:', { queryStatus, catalogCount, catalogs }); return { ...currentVariables, query_status: queryStatus, catalog_count: catalogCount, catalogs: catalogs, execution_successful: queryStatus === 'SUCCEEDED' }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const catalogStep = stepResults.execute_show_catalogs; if (catalogStep.error) { return { status: 'fail', message: 'Failed to execute SHOW CATALOGS command', code: 'UNITY_CATALOG_QUERY_FAILED', test_id: 'OQ-101-3', title: 'Unity Catalog Compatibility' }; } if (catalogStep.status !== 200) { let errorMessage = 'Unity Catalog compatibility test failed'; if (catalogStep.status === 404) { errorMessage = 'SQL endpoint not found'; } else if (catalogStep.status === 403) { errorMessage = 'Permission denied for SQL execution'; } else { errorMessage = `API error: ${catalogStep.status}`; } return { status: 'fail', message: errorMessage, code: 'UNITY_CATALOG_API_ERROR', test_id: 'OQ-101-3', title: 'Unity Catalog Compatibility' }; } const queryStatus = catalogStep.data?.status?.state || 'UNKNOWN'; const dataArray = catalogStep.data?.result?.data_array || []; const catalogCount = Array.isArray(dataArray) ? dataArray.length : 0; const catalogs = Array.isArray(dataArray) ? dataArray.map(row => row && row.length > 0 ? row[0] : 'Unknown').filter(name => name !== 'Unknown') : []; const executionSuccessful = queryStatus === 'SUCCEEDED'; const hasCatalogs = catalogCount > 0; if (queryStatus === 'UNKNOWN' || queryStatus === 'FAILED') { return { status: 'fail', message: 'Failed to execute SHOW CATALOGS command', code: 'UNITY_CATALOG_QUERY_FAILED', test_id: 'OQ-101-3', title: 'Unity Catalog Compatibility' }; } if (!executionSuccessful) { return { status: 'fail', message: 'Unity Catalog is not compatible - SHOW CATALOGS command failed', code: 'UNITY_CATALOG_INCOMPATIBLE', test_id: 'OQ-101-3', title: 'Unity Catalog Compatibility' }; } if (!hasCatalogs) { return { status: 'fail', message: 'Unity Catalog accessible but no catalogs found', code: 'NO_CATALOGS_FOUND', test_id: 'OQ-101-3', title: 'Unity Catalog Compatibility' }; } return { status: 'pass', message: `Unity Catalog compatibility validated - ${catalogCount} catalog(s) found`, code: 'UNITY_CATALOG_COMPATIBLE', test_id: 'OQ-101-3', title: 'Unity Catalog Compatibility' }; }"
+} 

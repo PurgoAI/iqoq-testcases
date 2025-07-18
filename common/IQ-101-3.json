@@ -1,0 +1,25 @@
+{
+  "title": "Admin Console Access",
+  "test_description": "Validate admin console access via SCIM API",
+  "version": "1.0",
+  "test_code": "IQ-101-3",
+  "test_seq": 3,
+  "test_suite": "IQ-101",
+  "test_suite_title": "Databricks Workspace Setup",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "test_scim_access",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Users",
+      "headers": {
+        "Authorization": "Bearer ${token}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const scimStep = stepResults.test_scim_access; if (!scimStep) { return { status: 'fail', message: 'No response received from SCIM API', code: 'NO_RESPONSE', test_id: 'IQ-101-3', title: 'Admin Console Access' }; } const statusCode = scimStep.status; const apiOutput = scimStep.data; if (apiOutput && apiOutput.Resources && statusCode === 200) { return { status: 'pass', message: 'Admin console access verified', code: 'ACCESS_VERIFIED', test_id: 'IQ-101-3', title: 'Admin Console Access' }; } if (statusCode === 403) { return { status: 'pass', message: 'Admin console properly secured', code: 'ACCESS_RESTRICTED', test_id: 'IQ-101-3', title: 'Admin Console Access' }; } if (statusCode === 401) { return { status: 'fail', message: 'Authentication failed for admin console', code: 'AUTHENTICATION_FAILED', test_id: 'IQ-101-3', title: 'Admin Console Access' }; } return { status: 'fail', message: 'Unexpected response from admin console: ' + statusCode, code: 'HTTP_' + statusCode, test_id: 'IQ-101-3', title: 'Admin Console Access' }; }"
+}

@@ -1,0 +1,46 @@
+{
+  "title": "Schema Evolution",
+  "test_description": "Schema evolution validation - Auto-merge enabled and DESCRIBE HISTORY available. Checks Delta table writer version >= 4 for schema evolution support.",
+  "version": "1.0",
+  "test_code": "OQ-102-2",
+  "test_seq": 2,
+  "test_suite": "OQ-102",
+  "test_suite_title": "Data Transformation",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "describe_detail_table",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "DESCRIBE DETAIL iq_oq_demo.silver.sdtm_dm_masked",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData.result ? responseData.result.data_array : []; if (dataArray && dataArray.length > 0) { const row = dataArray[0]; const format = row[0] || ''; const minReaderVersion = row[12] || ''; const minWriterVersion = row[13] || ''; const properties = row[11] || ''; logger.debug('Table detail info:', { format, minWriterVersion, minReaderVersion }); return { ...currentVariables, table_format: format, min_reader_version: minReaderVersion, min_writer_version: minWriterVersion, table_properties: properties, describe_detail_success: true }; } return { ...currentVariables, describe_detail_success: false }; }"
+    },
+    {
+      "step": 2,
+      "name": "describe_history_table",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "DESCRIBE HISTORY iq_oq_demo.silver.sdtm_dm_masked",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData.result ? responseData.result.data_array : []; const historyCount = Array.isArray(dataArray) ? dataArray.length : 0; const hasHistory = historyCount > 0; let schemaChanges = []; if (Array.isArray(dataArray)) { dataArray.forEach(row => { const operation = row[4] || ''; const params = row[5] || ''; const version = row[0] || ''; if (operation.includes('ADD COLUMNS') || operation.includes('ALTER SCHEMA') || operation.includes('CHANGE COLUMN')) { schemaChanges.push({ version: version, operation: operation }); } else if (typeof params === 'string' && (params.toLowerCase().includes('schema') || params.toLowerCase().includes('column') || params.toLowerCase().includes('addcolumn'))) { if (!operation.includes('CREATE TABLE')) { schemaChanges.push({ version: version, operation: operation, params: params }); } } }); } logger.debug('Table history info:', { historyCount, schemaChanges: schemaChanges.length }); return { ...currentVariables, history_count: historyCount, has_history: hasHistory, schema_changes: schemaChanges, describe_history_success: true }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const detailStep = stepResults.describe_detail_table; const historyStep = stepResults.describe_history_table; if (detailStep.error || historyStep.error) { return { status: 'fail', message: 'Failed to execute schema evolution validation queries', code: 'SCHEMA_EVOLUTION_QUERY_ERROR', test_id: 'OQ-102-2', title: 'Schema Evolution' }; } if (detailStep.status !== 200 || historyStep.status !== 200) { let errorMessage = 'Schema evolution validation failed'; if (detailStep.status === 404 || historyStep.status === 404) { errorMessage = 'Table iq_oq_demo.silver.sdtm_dm_masked not found'; } else if (detailStep.status === 403 || historyStep.status === 403) { errorMessage = 'Permission denied accessing table'; } else { errorMessage = `API error: ${detailStep.status || historyStep.status}`; } return { status: 'fail', message: errorMessage, code: 'SCHEMA_EVOLUTION_API_ERROR', test_id: 'OQ-102-2', title: 'Schema Evolution' }; } const tableFormat = detailStep.data?.result?.data_array?.[0]?.[0] || ''; const minWriterVersion = detailStep.data?.result?.data_array?.[0]?.[13] || ''; const tableProperties = detailStep.data?.result?.data_array?.[0]?.[11] || ''; const describeDetailSuccess = detailStep.data?.result?.data_array?.length > 0; if (!describeDetailSuccess) { return { status: 'fail', message: 'Failed to get table details for schema evolution check', code: 'SCHEMA_EVOLUTION_DETAIL_ERROR', test_id: 'OQ-102-2', title: 'Schema Evolution' }; } const isDeltaTable = tableFormat && tableFormat.toLowerCase().includes('delta'); let writerVersionNumber = 0; let schemaEvolutionCapable = false; if (minWriterVersion) { try { writerVersionNumber = parseInt(minWriterVersion.toString()); if (writerVersionNumber >= 4) { schemaEvolutionCapable = true; } } catch (e) { logger.debug('Could not parse writer version:', minWriterVersion); } } if (tableProperties && typeof tableProperties === 'string') { const propsLower = tableProperties.toLowerCase().replace(/\\s/g, ''); if (propsLower.includes('mergeschema') || propsLower.includes('schemaevolution')) { schemaEvolutionCapable = true; } } if (!isDeltaTable) { return { status: 'fail', message: `Table iq_oq_demo.silver.sdtm_dm_masked is not a Delta table (format: ${tableFormat})`, code: 'SCHEMA_EVOLUTION_NOT_DELTA', test_id: 'OQ-102-2', title: 'Schema Evolution' }; } if (!schemaEvolutionCapable) { return { status: 'fail', message: `Table is a Delta table but does not support schema evolution. Writer version needs to be 4 or higher (current: ${minWriterVersion})`, code: 'SCHEMA_EVOLUTION_DISABLED', test_id: 'OQ-102-2', title: 'Schema Evolution' }; } return { status: 'pass', message: `Schema evolution is supported on table iq_oq_demo.silver.sdtm_dm_masked (Writer v${minWriterVersion}). This table supports adding new columns.`, code: 'SchemaEvolution_ENABLED', test_id: 'OQ-102-2', title: 'Schema Evolution' }; }"
+} 

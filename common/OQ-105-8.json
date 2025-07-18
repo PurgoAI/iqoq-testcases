@@ -1,0 +1,58 @@
+{
+  "title": "Authorization Access (Direct) - Positive",
+  "test_description": "Authorization Access (Direct) - Positive: Grant SELECT permission directly to user2 and verify user2 can SELECT from the table.",
+  "version": "1.0",
+  "test_code": "OQ-105-8",
+  "test_seq": 8,
+  "test_suite": "OQ-105",
+  "test_suite_title": "Data Governance",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_current_user",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const userEmail = responseData.userName || responseData.emails?.[0]?.value || 'test-user@purgo.ai'; return { ...currentVariables, target_user_email: userEmail }; }"
+    },
+    {
+      "step": 2,
+      "name": "grant_select_to_user",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "GRANT SELECT ON TABLE iq_oq_demo.silver.sdtm_dm TO `${target_user_email}`",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 3,
+      "name": "test_select_access",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const grantStep = stepResults.grant_select_to_user; const accessStep = stepResults.test_select_access; if (!userStep || !userStep.data) { return { status: 'fail', message: 'Failed to get current user information', code: 'GET_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive' }; } if (!grantStep || !grantStep.data || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } return { status: 'fail', message: 'Failed to grant SELECT permission to user: ' + errorMsg, code: 'GRANT_SELECT_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive' }; } if (!accessStep || !accessStep.data || accessStep.data.status.state !== 'SUCCEEDED') { return { status: 'fail', message: 'Authorization validation failed: User cannot select from iq_oq_demo.silver.sdtm_dm after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive' }; } return { status: 'pass', message: 'Authorization validation passed: User can select from iq_oq_demo.silver.sdtm_dm after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_PASSED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive' }; }"
+} 

@@ -1,0 +1,46 @@
+{
+  "title": "Authorization Access (Role) - Positive",
+  "test_description": "Authorization Access (Role) - Positive: Grant SELECT permission to TEMP_GROUP_OQ104 and verify user2 can SELECT from the table.",
+  "version": "1.0",
+  "test_code": "OQ-105-5",
+  "test_seq": 5,
+  "test_suite": "OQ-105",
+  "test_suite_title": "Data Governance",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "grant_select_to_group",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "GRANT SELECT ON TABLE iq_oq_demo.silver.sdtm_dm TO TEMP_GROUP_OQ104",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 2,
+      "name": "test_select_access",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const grantStep = stepResults.grant_select_to_group; const accessStep = stepResults.test_select_access; if (!grantStep || !grantStep.data || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } return { status: 'fail', message: 'Failed to grant SELECT permission: ' + errorMsg, code: 'GRANT_SELECT_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive' }; } if (!accessStep || !accessStep.data || accessStep.data.status.state !== 'SUCCEEDED') { return { status: 'fail', message: 'Authorization validation failed: User2 cannot select from iq_oq_demo.silver.sdtm_dm after grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive' }; } return { status: 'pass', message: 'Authorization validation passed: User2 can select from iq_oq_demo.silver.sdtm_dm after group grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_PASSED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive' }; }"
+} 

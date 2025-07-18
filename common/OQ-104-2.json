@@ -1,0 +1,30 @@
+{
+  "title": "Invalid Records",
+  "test_description": "Data Validation - Invalid Records check for heart_rate field. Validates ≤0.1% invalid records requirement (heart rate should be between 30-220).",
+  "version": "1.0",
+  "test_code": "OQ-104-2",
+  "test_seq": 2,
+  "test_suite": "OQ-104",
+  "test_suite_title": "Data Validation",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "validate_invalid_records",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT COUNT(*) as total_records, SUM(CASE WHEN heart_rate BETWEEN 30 AND 220 THEN 1 ELSE 0 END) as valid_records, SUM(CASE WHEN heart_rate NOT BETWEEN 30 AND 220 OR heart_rate IS NULL THEN 1 ELSE 0 END) as invalid_records FROM iq_oq_demo.silver.sdtm_dm",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const invalidStep = stepResults.validate_invalid_records; if (!invalidStep || !invalidStep.data) { return { status: 'fail', message: 'No response received from invalid records query', code: 'INVALID_RECORDS_NO_RESULTS', test_id: 'OQ-104-2', title: 'Invalid Records' }; } const data = invalidStep.data; if (data.status && data.status.state === 'SUCCEEDED' && data.result && data.result.data_array && data.result.data_array.length > 0) { const dataArray = data.result.data_array; const row = dataArray[0]; const totalRecords = parseInt(row[0]) || 0; const validRecords = parseInt(row[1]) || 0; const invalidRecords = parseInt(row[2]) || 0; if (totalRecords === 0) { return { status: 'fail', message: 'No records found in the table', code: 'INVALID_RECORDS_NO_RECORDS', test_id: 'OQ-104-2', title: 'Invalid Records' }; } const invalidPercentage = (invalidRecords / totalRecords) * 100; if (invalidPercentage <= 0.1) { return { status: 'pass', message: 'Invalid records: ' + invalidRecords + '/' + totalRecords + ' (' + invalidPercentage.toFixed(4) + '%) (≤0.1% required)', code: 'INVALID_RECORDS_PASSED', test_id: 'OQ-104-2', title: 'Invalid Records' }; } else { return { status: 'fail', message: 'Invalid records: ' + invalidRecords + '/' + totalRecords + ' (' + invalidPercentage.toFixed(4) + '%) (exceeds 0.1% threshold)', code: 'INVALID_RECORDS_FAILED', test_id: 'OQ-104-2', title: 'Invalid Records' }; } } else if (data.status && data.status.state !== 'SUCCEEDED') { return { status: 'fail', message: 'Failed to execute invalid records validation query', code: 'INVALID_RECORDS_QUERY_ERROR', test_id: 'OQ-104-2', title: 'Invalid Records' }; } else { return { status: 'fail', message: 'No data returned from invalid records validation query', code: 'INVALID_RECORDS_NO_RESULTS', test_id: 'OQ-104-2', title: 'Invalid Records' }; } }"
+} 

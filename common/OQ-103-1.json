@@ -1,0 +1,30 @@
+{
+  "title": "Audit Trail",
+  "test_description": "Audit Trail validation - Refresh operations found in audit trail. Queries system.query.history for REFRESH operations with execution status FINISHED.",
+  "version": "1.0",
+  "test_code": "OQ-103-1",
+  "test_seq": 1,
+  "test_suite": "OQ-103",
+  "test_suite_title": "Audit Trail",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "query_audit_trail",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT statement_id, statement_text, executed_by, executed_by_user_id, execution_status, total_duration_ms FROM system.query.history WHERE statement_text LIKE '%REFRESH%iq_oq_demo.silver.sdtm_dm%' AND execution_status = 'FINISHED' ORDER BY total_duration_ms DESC LIMIT 10",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const auditStep = stepResults.query_audit_trail; if (!auditStep || !auditStep.data) { return { status: 'fail', message: 'No response received from audit trail query', code: 'AUDIT_TRAIL_MISSING', test_id: 'OQ-103-1', title: 'Audit Trail' }; } const data = auditStep.data; if (data.status && data.status.state === 'SUCCEEDED' && data.result && data.result.data_array && data.result.data_array.length > 0) { const dataArray = data.result.data_array; const refreshOperations = []; const refreshUsers = []; for (let i = 0; i < dataArray.length; i++) { const row = dataArray[i]; const statementId = row[0] || ''; const statementText = row[1] || ''; const executedBy = row[2] || ''; const executedByUserId = row[3] || ''; const executionStatus = row[4] || ''; const totalDurationMs = row[5] || 0; if (executionStatus === 'FINISHED' && statementText.toUpperCase().indexOf('REFRESH') !== -1) { refreshOperations.push(statementText); refreshUsers.push(executedBy); } } if (refreshOperations.length > 0) { const uniqueUsers = []; for (let j = 0; j < refreshUsers.length; j++) { if (uniqueUsers.indexOf(refreshUsers[j]) === -1) { uniqueUsers.push(refreshUsers[j]); } } const operationsCount = refreshUsers.length; const maxDuration = dataArray.length > 0 ? (dataArray[0][5] || 0) : 0; return { status: 'pass', message: 'Refresh operations found in audit trail (' + operationsCount + ' total). Users: ' + uniqueUsers.slice(0, 3).join(', ') + ', Duration: ' + maxDuration + ' ms', code: 'AUDIT_TRAIL_OK', test_id: 'OQ-103-1', title: 'Audit Trail' }; } else { return { status: 'fail', message: 'Audit trail exists but no successful REFRESH operations found', code: 'AUDIT_TRAIL_INCOMPLETE', test_id: 'OQ-103-1', title: 'Audit Trail' }; } } else if (data.status && data.status.state !== 'SUCCEEDED') { return { status: 'fail', message: 'Failed to execute audit trail query', code: 'AUDIT_TRAIL_ERROR', test_id: 'OQ-103-1', title: 'Audit Trail' }; } else { return { status: 'fail', message: 'No audit trail history found for the REFRESH operation on the SDTM_DM table', code: 'AUDIT_TRAIL_MISSING', test_id: 'OQ-103-1', title: 'Audit Trail' }; } }"
+} 

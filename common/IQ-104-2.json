@@ -1,0 +1,27 @@
+{
+  "title": "Auto-scaling",
+  "test_description": "Validate that the Databricks cluster has the required auto-scaling configuration",
+  "version": "1.0",
+  "test_code": "IQ-104-2",
+  "test_seq": 2,
+  "test_suite": "IQ-104",
+  "test_suite_title": "Cluster Configuration",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_cluster_autoscale",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.get_cluster_autoscale; if (clusterStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-104-2', title: 'Auto-scaling' }; } const apiOutput = clusterStep.data; try { if (!apiOutput.autoscale) { return { status: 'fail', message: 'Cluster does not have auto-scaling enabled', code: 'NO_AUTO_SCALING', test_id: 'IQ-104-2', title: 'Auto-scaling' }; } const minWorkers = apiOutput.autoscale.min_workers; const maxWorkers = apiOutput.autoscale.max_workers; if (minWorkers === undefined || maxWorkers === undefined) { return { status: 'fail', message: 'Auto-scaling configuration is incomplete', code: 'INCOMPLETE_AUTO_SCALING', test_id: 'IQ-104-2', title: 'Auto-scaling' }; } const minCorrect = minWorkers === 8; const maxCorrect = maxWorkers === 32; if (minCorrect && maxCorrect) { return { status: 'pass', message: 'Cluster has the required auto-scaling configuration (8-32 nodes)', code: 'CORRECT_AUTO_SCALING', test_id: 'IQ-104-2', title: 'Auto-scaling' }; } else { let message = 'Cluster auto-scaling configuration does not meet requirements:'; if (!minCorrect) { message += ' Min workers is ' + minWorkers + ' instead of 8;'; } if (!maxCorrect) { message += ' Max workers is ' + maxWorkers + ' instead of 32;'; } return { status: 'fail', message: message, code: 'INCORRECT_AUTO_SCALING', test_id: 'IQ-104-2', title: 'Auto-scaling' }; } } catch (error) { return { status: 'fail', message: 'Error processing auto-scaling data: ' + error.message, code: 'PROCESSING_ERROR', test_id: 'IQ-104-2', title: 'Auto-scaling' }; } }"
+}

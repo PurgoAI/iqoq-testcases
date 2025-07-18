@@ -1,0 +1,57 @@
+{
+  "title": "Repository Access Validation",
+  "test_description": "Validate repository access by listing repos and creating if needed",
+  "version": "1.0",
+  "test_code": "IQ-108-2",
+  "test_seq": 2,
+  "test_suite": "IQ-108",
+  "test_suite_title": "Git Connection Validation",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "list_existing_repos",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/repos",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const existingRepos = responseData?.repos || []; let repoFound = false; let targetRepoId = null; let targetRepoPath = null; const repoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; for (let i = 0; i < existingRepos.length; i++) { const repo = existingRepos[i]; if (repo && repo.url === repoUrl) { repoFound = true; targetRepoId = repo.id; targetRepoPath = repo.path; break; } } logger.debug('Repo search:', { repoFound, targetRepoId, totalRepos: existingRepos.length }); return { ...currentVariables, repo_found: repoFound, repo_id: targetRepoId, repo_path: targetRepoPath, total_repos: existingRepos.length }; }"
+    },
+    {
+      "step": 2,
+      "name": "get_current_user",
+      "condition": "!repo_found",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData?.userName || 'validation-user'; const userId = responseData?.id || 'unknown'; const timestamp = Date.now().toString(); logger.debug('Current user:', { userName, userId, timestamp }); return { ...currentVariables, current_username: userName, current_user_id: userId, current_timestamp: timestamp }; }"
+    },
+    {
+      "step": 3,
+      "name": "create_validation_repo",
+      "condition": "!repo_found && current_username",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/repos",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "url": "${repo_url}",
+        "provider": "${git_provider}",
+        "path": "/Users/${current_username}/iq-oq-validation-repo-${current_timestamp}",
+        "branch": "main"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; const repoPath = responseData?.path || null; const success = responseData && !responseData.error_code; logger.debug('Repo creation:', { success, repoId, repoPath }); return { ...currentVariables, repo_created: success, new_repo_id: repoId, new_repo_path: repoPath, creation_result: responseData }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const listStep = stepResults.list_existing_repos; const userStep = stepResults.get_current_user; const createStep = stepResults.create_validation_repo; if (listStep.error) { return { status: 'fail', message: 'Failed to list existing repositories', code: 'REPO_LIST_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation' }; } const repoUrl = variables?.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; const gitProvider = variables?.git_provider || 'gitHub'; const existingRepos = listStep.data?.repos || []; const totalRepos = existingRepos.length; let repoFound = false; let targetRepoId = null; let targetRepoPath = null; for (let i = 0; i < existingRepos.length; i++) { const repo = existingRepos[i]; if (repo && repo.url === repoUrl) { repoFound = true; targetRepoId = repo.id; targetRepoPath = repo.path; break; } } if (repoFound) { return { status: 'pass', message: 'Repository access validated successfully - existing repository found', code: 'REPO_ACCESS_VALID', test_id: 'IQ-108-2', title: 'Repository Access Validation' }; } let currentUsername = 'validation-user'; if (userStep && !userStep.error && userStep.data) { currentUsername = userStep.data.userName || 'validation-user'; } else if (userStep && userStep.error) { return { status: 'fail', message: 'Failed to get current user information', code: 'USER_INFO_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation' }; } if (createStep && createStep.error) { return { status: 'fail', message: 'Failed to create validation repository', code: 'REPO_CREATE_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation' }; } if (createStep && createStep.status !== 200) { let errorMessage = 'Repository creation failed'; if (createStep.status === 403) { errorMessage = 'Permission denied creating repository'; } else if (createStep.status === 400) { errorMessage = 'Invalid repository configuration'; } else if (createStep.status === 409) { errorMessage = 'Repository already exists or path conflict'; } else { errorMessage = `API error: ${createStep.status}`; } return { status: 'fail', message: errorMessage, code: 'API_ERROR', test_id: 'IQ-108-2', title: 'Repository Access Validation' }; } if (createStep && createStep.data) { const newRepoId = createStep.data.id; const success = createStep.data && !createStep.data.error_code; if (success && newRepoId) { return { status: 'pass', message: 'Repository access validated successfully - new repository created', code: 'REPO_CREATED', test_id: 'IQ-108-2', title: 'Repository Access Validation' }; } } return { status: 'fail', message: 'Repository access validation failed - unable to access or create repository', code: 'REPO_ACCESS_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation' }; }"
+} 

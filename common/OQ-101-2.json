@@ -1,0 +1,28 @@
+{
+  "title": "Access Mode Validation",
+  "test_description": "Verify access mode via API - Standard or Dedicated mode. data_security_mode = \"USER_ISOLATION\" or \"SINGLE_USER\"",
+  "version": "1.0",
+  "test_code": "OQ-101-2",
+  "test_seq": 2,
+  "test_suite": "OQ-101",
+  "test_suite_title": "Cluster Availability",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_cluster_info",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const dataSecurityMode = responseData.data_security_mode || 'NONE'; const clusterName = responseData.cluster_name || 'Unknown'; logger.debug('Cluster access mode:', { dataSecurityMode, clusterName }); return { ...currentVariables, data_security_mode: dataSecurityMode, cluster_name: clusterName }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.get_cluster_info; if (clusterStep.error) { return { status: 'fail', message: 'Failed to get cluster information', code: 'CLUSTER_INFO_ERROR', test_id: 'OQ-101-2', title: 'Access Mode Validation' }; } const dataSecurityMode = clusterStep.data?.data_security_mode || 'NONE'; const clusterName = clusterStep.data?.cluster_name || 'Unknown'; if (clusterStep.status !== 200) { let errorMessage = 'Failed to get cluster data security mode'; if (clusterStep.status === 404) { errorMessage = 'Cluster not found'; } else if (clusterStep.status === 403) { errorMessage = 'Permission denied accessing cluster'; } else { errorMessage = `API error: ${clusterStep.status}`; } return { status: 'fail', message: errorMessage, code: 'ACCESS_MODE_ERROR', test_id: 'OQ-101-2', title: 'Access Mode Validation' }; } if (dataSecurityMode === 'NONE' || dataSecurityMode === 'Unknown') { return { status: 'fail', message: 'Failed to get cluster data security mode', code: 'ACCESS_MODE_ERROR', test_id: 'OQ-101-2', title: 'Access Mode Validation' }; } const accessModeNames = { 'USER_ISOLATION': 'Standard (Unity Catalog compatible)', 'SINGLE_USER': 'Dedicated (Legacy)', 'LEGACY_TABLE_ACL': 'Legacy Table ACL (Not UC compatible)', 'LEGACY_PASSTHROUGH': 'Legacy Passthrough (Not UC compatible)', 'NONE': 'No Isolation (Not secure for clinical data)' }; const accessModeName = accessModeNames[dataSecurityMode] || `Unknown (${dataSecurityMode})`; const accessModeCompatible = (dataSecurityMode === 'USER_ISOLATION' || dataSecurityMode === 'SINGLE_USER'); if (!accessModeCompatible) { return { status: 'fail', message: `Access mode does not meet requirements: ${accessModeName}`, code: 'ACCESS_MODE_INCOMPATIBLE', test_id: 'OQ-101-2', title: 'Access Mode Validation' }; } return { status: 'pass', message: `Access mode validation passed: ${accessModeName}`, code: 'ACCESS_MODE_VALIDATED', test_id: 'OQ-101-2', title: 'Access Mode Validation' }; }"
+} 
