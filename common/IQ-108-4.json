@@ -18,13 +18,13 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; const urlParts = repoUrl.split('/'); const repoName = urlParts[urlParts.length - 1]; logger.debug('Repository info extraction:', { repoUrl, repoName }); return { ...currentVariables, repo_name: repoName }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; const urlParts = repoUrl.split('/'); const repoOwner = urlParts[urlParts.length - 2]; const repoName = urlParts[urlParts.length - 1]; logger.debug('Repository info extraction:', { repoUrl, repoOwner, repoName }); return { ...currentVariables, repo_owner: repoOwner, repo_name: repoName }; }"
     },
     {
       "step": 2,
       "name": "create_test_file_in_git",
       "method": "PUT",
-      "api_url": "https://api.github.com/repos/${git_username}/${repo_name}/contents/sync-test-validation.txt",
+      "api_url": "https://api.github.com/repos/${repo_owner}/${repo_name}/contents/sync-test-validation.txt",
       "headers": {
         "Authorization": "token ${personal_access_token}",
         "Content-Type": "application/json"
@@ -90,7 +90,7 @@
       "step": 7,
       "name": "delete_file_from_git",
       "method": "DELETE",
-      "api_url": "https://api.github.com/repos/${git_username}/${repo_name}/contents/sync-test-validation.txt",
+      "api_url": "https://api.github.com/repos/${repo_owner}/${repo_name}/contents/sync-test-validation.txt",
       "headers": {
         "Authorization": "token ${personal_access_token}",
         "Content-Type": "application/json"
