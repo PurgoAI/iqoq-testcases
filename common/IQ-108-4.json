@@ -101,7 +101,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const syncStatus = responseData?.status || 'UNKNOWN'; const syncEndTime = Date.now(); const syncDuration = syncEndTime - currentVariables.sync_start_time; const syncSuccessful = responseData && responseData.head_commit_id && responseData.head_commit_id !== '0000000000000000000000000000000000000000'; logger.debug('Sync monitoring:', { syncStatus, syncDuration, syncSuccessful, headCommitId: responseData?.head_commit_id }); return { ...currentVariables, sync_status: syncStatus, sync_end_time: syncEndTime, sync_duration_ms: syncDuration, sync_successful: syncSuccessful }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const syncStatus = responseData?.status || 'UNKNOWN'; const syncEndTime = Date.now(); const syncDuration = syncEndTime - currentVariables.sync_start_time; const syncSuccessful = responseData && responseData.head_commit_id && responseData.head_commit_id !== '0000000000000000000000000000000000000000'; logger.debug('Sync monitoring:', { syncStatus, syncDuration, syncSuccessful, headCommitId: responseData?.head_commit_id }); return { sync_status: syncStatus, sync_end_time: syncEndTime, sync_duration_ms: syncDuration, sync_successful: syncSuccessful }; }"
     },
     {
       "step": 8,
@@ -113,7 +113,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repoExists = responseData && !responseData.error_code; const headCommitId = responseData?.head_commit_id; const fileExists = repoExists && headCommitId && headCommitId !== '0000000000000000000000000000000000000000'; const contentMatches = fileExists; logger.debug('File verification:', { fileExists, contentMatches, repoExists, headCommitId }); return { ...currentVariables, file_exists_in_repos: fileExists, content_matches: contentMatches, repo_exists: repoExists }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repoExists = responseData && !responseData.error_code; const headCommitId = responseData?.head_commit_id; const fileExists = repoExists && headCommitId && headCommitId !== '0000000000000000000000000000000000000000'; const contentMatches = fileExists; logger.debug('File verification:', { fileExists, contentMatches, repoExists, headCommitId }); return { file_exists_in_repos: fileExists, content_matches: contentMatches, repo_exists: repoExists }; }"
     },
     {
       "step": 9,
