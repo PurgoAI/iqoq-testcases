@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData || []; const existingRepo = repos.find(repo => repo.url && repo.url.includes('test-iq-oq-git-intg')); const repoOwner = 'PurgoAI'; const repoName = 'test-iq-oq-git-intg'; logger.debug('Repo info extracted:', { existingRepo: !!existingRepo, repoOwner, repoName }); return { ...currentVariables, repo_owner: repoOwner, repo_name: repoName }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = Array.isArray(responseData) ? responseData : (responseData?.repos || []); const existingRepo = repos.find(repo => repo && repo.url && repo.url.includes('test-iq-oq-git-intg')); const repoOwner = 'PurgoAI'; const repoName = 'test-iq-oq-git-intg'; logger.debug('Repo info extracted:', { existingRepo: !!existingRepo, repoOwner, repoName, reposLength: repos.length }); return { ...currentVariables, repo_owner: repoOwner, repo_name: repoName }; }"
     },
     {
       "step": 2,
