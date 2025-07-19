@@ -75,13 +75,13 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData?.repos || []; const targetRepoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; let repoFound = false; let foundRepoId = null; for (let i = 0; i < repos.length; i++) { const repo = repos[i]; if (repo && repo.url === targetRepoUrl) { repoFound = true; foundRepoId = repo.id; logger.debug('Repository found in list:', { repoId: repo.id, repoUrl: repo.url, repoPath: repo.path }); break; } } if (!repoFound && currentVariables.repo_id) { // If not found by URL but we have a repo_id from creation, use that foundRepoId = currentVariables.repo_id; repoFound = true; logger.debug('Using repository ID from creation step:', { repoId: foundRepoId }); } logger.debug('Repository availability check:', { repoFound, foundRepoId, totalRepos: repos.length, targetRepoUrl }); return { ...currentVariables, repo_found_in_list: repoFound, final_repo_id: foundRepoId, total_repos: repos.length }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData?.repos || []; const targetRepoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; let repoFound = false; let foundRepoId = null; for (let i = 0; i < repos.length; i++) { const repo = repos[i]; if (repo && repo.url === targetRepoUrl) { repoFound = true; foundRepoId = repo.id; logger.debug('Repository found in list:', { repoId: repo.id, repoUrl: repo.url, repoPath: repo.path }); break; } } if (!repoFound && currentVariables.repo_id) { foundRepoId = currentVariables.repo_id; repoFound = true; logger.debug('Using repository ID from creation step:', { repoId: foundRepoId }); } logger.debug('Repository availability check:', { repoFound, foundRepoId, totalRepos: repos.length, targetRepoUrl }); return { ...currentVariables, repo_found_in_list: repoFound, final_repo_id: foundRepoId, total_repos: repos.length }; }"
     },
     {
       "step": 6,
       "name": "trigger_sync",
       "method": "PATCH",
-      "api_url": "${workspace_url}/api/2.0/repos/${final_repo_id}",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -95,7 +95,7 @@
       "step": 7,
       "name": "monitor_sync_progress",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/repos/${final_repo_id}/sync-status",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}/sync-status",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -107,7 +107,7 @@
       "step": 8,
       "name": "verify_file_in_repos",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/repos/${final_repo_id}/files/${test_file_name}",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}/files/${test_file_name}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -135,7 +135,7 @@
       "step": 10,
       "name": "trigger_cleanup_sync",
       "method": "PATCH",
-      "api_url": "${workspace_url}/api/2.0/repos/${final_repo_id}",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
