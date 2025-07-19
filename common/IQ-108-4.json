@@ -24,7 +24,7 @@
       "step": 2,
       "name": "create_test_file_in_git",
       "method": "PUT",
-      "api_url": "https://api.github.com/repos/${repo_owner}/${repo_name}/contents/sync-test-validation-${current_timestamp}.txt",
+      "api_url": "https://api.github.com/repos/${repo_owner}/${repo_name}/contents/sync-test-validation-${file_timestamp}.txt",
       "headers": {
         "Authorization": "token ${personal_access_token}",
         "Content-Type": "application/json"
@@ -34,7 +34,7 @@
         "content": "VGhpcyBpcyBhIHRlc3QgZmlsZSBjcmVhdGVkIGZvciBzeW5jIHZhbGlkYXRpb24u",
         "branch": "main"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const fileCreated = responseData && responseData.content && responseData.content.sha; const creationTime = Date.now(); const testFileName = 'sync-test-validation-' + currentVariables.current_timestamp + '.txt'; const fileSha = responseData?.content?.sha || null; logger.debug('Test file creation:', { fileCreated, creationTime, testFileName, fileSha }); return { ...currentVariables, file_created: fileCreated, file_creation_time: creationTime, test_file_name: testFileName, file_sha: fileSha }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const fileCreated = responseData && responseData.content && responseData.content.sha; const creationTime = Date.now(); const fileTimestamp = creationTime.toString(); const testFileName = 'sync-test-validation-' + fileTimestamp + '.txt'; const fileSha = responseData?.content?.sha || null; logger.debug('Test file creation:', { fileCreated, creationTime, testFileName, fileSha }); return { ...currentVariables, file_created: fileCreated, file_creation_time: creationTime, test_file_name: testFileName, file_sha: fileSha, file_timestamp: fileTimestamp }; }"
     },
     {
       "step": 3,
