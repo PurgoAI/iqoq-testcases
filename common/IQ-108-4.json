@@ -1,5 +1,5 @@
 {
-  "title": "Repository Sync Validation",
+  "title": "Repository Sync Validation - new",
   "test_description": "Validates Git repository sync functionality by creating a test file in Git and verifying it appears in Databricks Repos within ≤5min sync time",
   "version": "1.0",
   "test_code": "IQ-108-4",
