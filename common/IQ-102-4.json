@@ -28,7 +28,7 @@
       "step": 2,
       "name": "enable_system_schema",
       "method": "PUT",
-      "api_url": "${workspace_url}/api/2.1/unity-catalog/metastores/${metastore_id_split}/systemschemas/{schemas}",
+      "api_url": "${workspace_url}/api/2.1/unity-catalog/metastores/${metastore_id_split}/systemschemas/default",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
