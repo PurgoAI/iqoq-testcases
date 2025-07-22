@@ -34,7 +34,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "state": "ENABLE"
+        "catalog_name": "${catalog_name}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     },
