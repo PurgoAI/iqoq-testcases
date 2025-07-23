@@ -26,15 +26,15 @@
     },
     {
       "step": 2,
-      "name": "enable_system_schema",
+      "name": "enable_system_query_schema",
       "method": "PUT",
-      "api_url": "${workspace_url}/api/2.1/unity-catalog/metastores/${metastore_id_split}/systemschemas/default",
+      "api_url": "${workspace_url}/api/2.1/unity-catalog/metastores/${metastore_id}/systemschemas/query",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
       "payload": {
-        "catalog_name": "${catalog_name}"
+        "enabled": true
       },
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     },
