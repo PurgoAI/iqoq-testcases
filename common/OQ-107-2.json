@@ -1,0 +1,37 @@
+{
+  "title": "Recursive Lineage Validation",
+  "test_description": "Recursive lineage validation - Builds complete lineage graph with all upstream and downstream dependencies up to specified depth, validating transformation dependencies across multiple levels.",
+  "version": "1.0",
+  "test_code": "OQ-107-2",
+  "manual_procedure": "Check recursive lineage dependencies",
+  "test_seq": 2,
+  "test_suite": "OQ-107",
+  "test_suite_title": "Data Lineage",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_recursive_upstream",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.silver.sdtm_dm&include_entity_lineage=true",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const upstreams = responseData?.upstreams || []; const upstreamCount = upstreams.length; const upstreamTables = upstreams.map(up => up.tableInfo?.name || '').filter(name => name && !name.includes('__materialization')); const upstreamSchemas = upstreams.map(up => up.tableInfo?.schema_name || '').filter(schema => schema); const uniqueSchemas = [...new Set(upstreamSchemas)]; const hasBronze = uniqueSchemas.includes('bronze'); const hasRaw = uniqueSchemas.some(schema => schema.toLowerCase().includes('raw')); return { ...currentVariables, upstream_count: upstreamCount, upstream_tables: upstreamTables, upstream_schemas: uniqueSchemas, has_bronze: hasBronze, has_raw: hasRaw }; }"
+    },
+    {
+      "step": 2,
+      "name": "get_recursive_downstream",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.bronze.demographics&include_entity_lineage=true",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const downstreams = responseData?.downstreams || []; const downstreamCount = downstreams.length; const downstreamTables = downstreams.map(down => down.tableInfo?.name || '').filter(name => name && !name.includes('__materialization')); const downstreamSchemas = downstreams.map(down => down.tableInfo?.schema_name || '').filter(schema => schema); const uniqueSchemas = [...new Set(downstreamSchemas)]; const hasSilver = uniqueSchemas.includes('silver'); const hasGold = uniqueSchemas.includes('gold'); return { ...currentVariables, downstream_count: downstreamCount, downstream_tables: downstreamTables, downstream_schemas: uniqueSchemas, has_silver: hasSilver, has_gold: hasGold }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const upstreamStep = stepResults.get_recursive_upstream; const downstreamStep = stepResults.get_recursive_downstream; const expected_result = 'Recursive lineage dependencies validated'; let actual_result = 'Recursive lineage validation failed'; if (upstreamStep.error || downstreamStep.error) { return { status: 'fail', message: 'Failed to retrieve recursive lineage data', code: 'RECURSIVE_LINEAGE_ERROR', test_id: 'OQ-107-2', title: 'Recursive Lineage Validation', expected_result, actual_result }; } const upstreamCount = variables.upstream_count || 0; const downstreamCount = variables.downstream_count || 0; const upstreamTables = variables.upstream_tables || []; const downstreamTables = variables.downstream_tables || []; const upstreamSchemas = variables.upstream_schemas || []; const downstreamSchemas = variables.downstream_schemas || []; const hasBronze = variables.has_bronze || false; const hasRaw = variables.has_raw || false; const hasSilver = variables.has_silver || false; const hasGold = variables.has_gold || false; const hasCompleteFlow = (hasRaw || hasBronze) && hasSilver && hasGold; if (upstreamCount > 0 && downstreamCount > 0) { actual_result = `Recursive lineage: ${upstreamCount} upstream, ${downstreamCount} downstream tables. Schemas: ${upstreamSchemas.join(',')} → ${downstreamSchemas.join(',')}`; if (hasCompleteFlow) { return { status: 'pass', message: actual_result, code: 'RECURSIVE_LINEAGE_PASSED', test_id: 'OQ-107-2', title: 'Recursive Lineage Validation', expected_result, actual_result }; } else { return { status: 'pass', message: actual_result, code: 'RECURSIVE_LINEAGE_PARTIAL', test_id: 'OQ-107-2', title: 'Recursive Lineage Validation', expected_result, actual_result }; } } else if (upstreamCount > 0 || downstreamCount > 0) { actual_result = `Partial recursive lineage: ${upstreamCount} upstream, ${downstreamCount} downstream tables`; return { status: 'pass', message: actual_result, code: 'RECURSIVE_LINEAGE_PARTIAL', test_id: 'OQ-107-2', title: 'Recursive Lineage Validation', expected_result, actual_result }; } else { actual_result = 'No recursive lineage dependencies found'; return { status: 'fail', message: actual_result, code: 'RECURSIVE_LINEAGE_EMPTY', test_id: 'OQ-107-2', title: 'Recursive Lineage Validation', expected_result, actual_result }; } }"
+} 

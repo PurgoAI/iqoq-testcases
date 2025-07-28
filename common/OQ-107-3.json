@@ -1,0 +1,48 @@
+{
+  "title": "Transformation Dependency Validation",
+  "test_description": "Transformation dependency validation - Validates that data transformations follow the expected bronze→silver→gold pattern with proper dependencies and no circular references.",
+  "version": "1.0",
+  "test_code": "OQ-107-3",
+  "manual_procedure": "Check transformation dependencies and patterns",
+  "test_seq": 3,
+  "test_suite": "OQ-107",
+  "test_suite_title": "Data Lineage",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "validate_bronze_dependencies",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.bronze.demographics&include_entity_lineage=true",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const upstreams = responseData?.upstreams || []; const downstreams = responseData?.downstreams || []; const bronzeUpstreamCount = upstreams.length; const bronzeDownstreamCount = downstreams.length; const bronzeUpstreamSchemas = upstreams.map(up => up.tableInfo?.schema_name || '').filter(schema => schema); const bronzeDownstreamSchemas = downstreams.map(down => down.tableInfo?.schema_name || '').filter(schema => schema); const hasRawUpstream = bronzeUpstreamSchemas.some(schema => schema.toLowerCase().includes('raw')); const hasSilverDownstream = bronzeDownstreamSchemas.includes('silver'); return { ...currentVariables, bronze_upstream_count: bronzeUpstreamCount, bronze_downstream_count: bronzeDownstreamCount, bronze_upstream_schemas: bronzeUpstreamSchemas, bronze_downstream_schemas: bronzeDownstreamSchemas, has_raw_upstream: hasRawUpstream, has_silver_downstream: hasSilverDownstream }; }"
+    },
+    {
+      "step": 2,
+      "name": "validate_silver_dependencies",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.silver.sdtm_dm&include_entity_lineage=true",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const upstreams = responseData?.upstreams || []; const downstreams = responseData?.downstreams || []; const silverUpstreamCount = upstreams.length; const silverDownstreamCount = downstreams.length; const silverUpstreamSchemas = upstreams.map(up => up.tableInfo?.schema_name || '').filter(schema => schema); const silverDownstreamSchemas = downstreams.map(down => down.tableInfo?.schema_name || '').filter(schema => schema); const hasBronzeUpstream = silverUpstreamSchemas.includes('bronze'); const hasGoldDownstream = silverDownstreamSchemas.includes('gold'); const hasValidUpstream = hasBronzeUpstream || silverUpstreamSchemas.some(schema => schema.toLowerCase().includes('raw')); return { ...currentVariables, silver_upstream_count: silverUpstreamCount, silver_downstream_count: silverDownstreamCount, silver_upstream_schemas: silverUpstreamSchemas, silver_downstream_schemas: silverDownstreamSchemas, has_bronze_upstream: hasBronzeUpstream, has_gold_downstream: hasGoldDownstream, has_valid_upstream: hasValidUpstream }; }"
+    },
+    {
+      "step": 3,
+      "name": "validate_gold_dependencies",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.gold.patient_summary&include_entity_lineage=true",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const upstreams = responseData?.upstreams || []; const downstreams = responseData?.downstreams || []; const goldUpstreamCount = upstreams.length; const goldDownstreamCount = downstreams.length; const goldUpstreamSchemas = upstreams.map(up => up.tableInfo?.schema_name || '').filter(schema => schema); const hasSilverUpstream = goldUpstreamSchemas.includes('silver'); const hasValidUpstream = hasSilverUpstream || goldUpstreamSchemas.some(schema => schema.toLowerCase().includes('bronze')); const transformationPattern = goldUpstreamSchemas.join(' → '); return { ...currentVariables, gold_upstream_count: goldUpstreamCount, gold_downstream_count: goldDownstreamCount, gold_upstream_schemas: goldUpstreamSchemas, has_silver_upstream: hasSilverUpstream, has_valid_upstream: hasValidUpstream, transformation_pattern: transformationPattern }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const bronzeStep = stepResults.validate_bronze_dependencies; const silverStep = stepResults.validate_silver_dependencies; const goldStep = stepResults.validate_gold_dependencies; const expected_result = 'Transformation dependencies follow bronze→silver→gold pattern'; let actual_result = 'Transformation dependency validation failed'; if (bronzeStep.error || silverStep.error || goldStep.error) { return { status: 'fail', message: 'Failed to validate transformation dependencies', code: 'TRANSFORMATION_DEPENDENCY_ERROR', test_id: 'OQ-107-3', title: 'Transformation Dependency Validation', expected_result, actual_result }; } const hasRawUpstream = variables.has_raw_upstream || false; const hasSilverDownstream = variables.has_silver_downstream || false; const hasBronzeUpstream = variables.has_bronze_upstream || false; const hasGoldDownstream = variables.has_gold_downstream || false; const hasSilverUpstream = variables.has_silver_upstream || false; const hasValidUpstream = variables.has_valid_upstream || false; const transformationPattern = variables.transformation_pattern || 'No pattern detected'; const bronzeUpstreamCount = variables.bronze_upstream_count || 0; const silverUpstreamCount = variables.silver_upstream_count || 0; const goldUpstreamCount = variables.gold_upstream_count || 0; const hasCompletePattern = (hasRawUpstream || bronzeUpstreamCount > 0) && hasSilverDownstream && hasBronzeUpstream && hasGoldDownstream && hasSilverUpstream; if (hasCompletePattern) { actual_result = `Transformation pattern validated: ${transformationPattern}`; return { status: 'pass', message: actual_result, code: 'TRANSFORMATION_DEPENDENCY_PASSED', test_id: 'OQ-107-3', title: 'Transformation Dependency Validation', expected_result, actual_result }; } else if (hasValidUpstream && (hasSilverDownstream || hasGoldDownstream || hasSilverUpstream)) { actual_result = `Partial transformation pattern: ${transformationPattern}`; return { status: 'pass', message: actual_result, code: 'TRANSFORMATION_DEPENDENCY_PARTIAL', test_id: 'OQ-107-3', title: 'Transformation Dependency Validation', expected_result, actual_result }; } else { actual_result = 'No valid transformation pattern detected'; return { status: 'fail', message: actual_result, code: 'TRANSFORMATION_DEPENDENCY_INVALID', test_id: 'OQ-107-3', title: 'Transformation Dependency Validation', expected_result, actual_result }; } }"
+} 

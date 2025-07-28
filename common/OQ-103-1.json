@@ -1,17 +1,17 @@
 {
-  "title": "Audit Trail",
-  "test_description": "Audit Trail validation - Refresh operations found in audit trail. Queries system.query.history for REFRESH operations with execution status FINISHED.",
+  "title": "SDTM_DM Table Refresh and Validation",
+  "test_description": "SDTM_DM Table Refresh and Validation - Refreshes the materialized view iq_oq_demo.silver.sdtm_dm and validates table existence, refresh operations, and transformation audit trail.",
   "version": "1.0",
   "test_code": "OQ-103-1",
-  "manual_procedure": "Check audit trail access",
+  "manual_procedure": "Check SDTM_DM table refresh and validation",
   "test_seq": 1,
   "test_suite": "OQ-103",
-  "test_suite_title": "Audit Trail",
+  "test_suite_title": "SDTM Blood Pressure Validation",
   "category": "OQ",
   "api_calls": [
     {
       "step": 1,
-      "name": "query_audit_trail",
+      "name": "check_table_existence",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
       "headers": {
@@ -19,13 +19,45 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT COUNT(*) as total_queries FROM system.query.history WHERE execution_status = 'FINISHED' AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY) LIMIT 1",
+        "statement": "SHOW TABLES IN iq_oq_demo.silver LIKE 'sdtm_dm'",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const schema = responseData?.manifest?.schema?.columns || []; if (dataArray && dataArray.length > 0 && schema.length > 0) { const row = dataArray[0]; const totalQueries = row[schema.findIndex(col => col.name === 'total_queries')] || 0; return { ...currentVariables, total_queries: totalQueries }; } return { ...currentVariables, total_queries: 0 }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const tableExists = dataArray && dataArray.length > 0; return { ...currentVariables, table_exists: tableExists }; }"
+    },
+    {
+      "step": 2,
+      "name": "refresh_table",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "REFRESH TABLE iq_oq_demo.silver.sdtm_dm",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "120s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const refreshStatus = responseData?.status?.state || 'UNKNOWN'; const refreshSuccess = refreshStatus === 'SUCCEEDED'; return { ...currentVariables, refresh_status: refreshStatus, refresh_success: refreshSuccess }; }"
+    },
+    {
+      "step": 3,
+      "name": "check_audit_trail",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT statement_id, statement_text, executed_by, executed_by_user_id, execution_status, total_duration_ms FROM system.query.history WHERE statement_text LIKE '%REFRESH%iq_oq_demo.silver.sdtm_dm%' AND execution_status = 'FINISHED' ORDER BY total_duration_ms DESC LIMIT 10",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const refreshOperations = dataArray.filter(row => row[1] && row[1].toUpperCase().includes('REFRESH') && row[4] === 'FINISHED'); const hasRefreshOperations = refreshOperations.length > 0; const refreshCount = refreshOperations.length; const refreshUsers = [...new Set(refreshOperations.map(row => row[2]).filter(user => user))]; const avgDuration = refreshOperations.length > 0 ? refreshOperations.reduce((sum, row) => sum + (parseInt(row[5]) || 0), 0) / refreshOperations.length : 0; return { ...currentVariables, has_refresh_operations: hasRefreshOperations, refresh_count: refreshCount, refresh_users: refreshUsers, avg_duration_ms: avgDuration }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const auditStep = stepResults.query_audit_trail; const expected_result = 'Audit trail accessible'; let actual_result = 'Audit trail not accessible'; if (auditStep.error) { return { status: 'fail', message: 'Failed to execute audit trail query', code: 'AUDIT_TRAIL_ERROR', test_id: 'OQ-103-1', title: 'Audit Trail', expected_result, actual_result }; } const totalQueries = variables.total_queries || 0; if (totalQueries > 0) { actual_result = `Found ${totalQueries} queries in last 7 days`; return { status: 'pass', message: actual_result, code: 'AUDIT_TRAIL_ACCESSIBLE', test_id: 'OQ-103-1', title: 'Audit Trail', expected_result, actual_result }; } else { actual_result = 'No recent queries found in audit trail'; return { status: 'fail', message: actual_result, code: 'AUDIT_TRAIL_EMPTY', test_id: 'OQ-103-1', title: 'Audit Trail', expected_result, actual_result }; } }"
+  "parser_code": "function aggregateResults(stepResults) { const existenceStep = stepResults.check_table_existence; const refreshStep = stepResults.refresh_table; const auditStep = stepResults.check_audit_trail; const expected_result = 'SDTM_DM table refreshed successfully with audit trail'; let actual_result = 'SDTM_DM table refresh validation failed'; if (existenceStep.error) { return { status: 'fail', message: 'Failed to check SDTM_DM table existence', code: 'SDTM_DM_EXISTENCE_ERROR', test_id: 'OQ-103-1', title: 'SDTM_DM Table Refresh and Validation', expected_result, actual_result }; } const tableExists = variables.table_exists || false; if (!tableExists) { actual_result = 'SDTM_DM table does not exist'; return { status: 'fail', message: actual_result, code: 'SDTM_DM_TABLE_NOT_FOUND', test_id: 'OQ-103-1', title: 'SDTM_DM Table Refresh and Validation', expected_result, actual_result }; } if (refreshStep.error) { return { status: 'fail', message: 'Failed to refresh SDTM_DM table', code: 'SDTM_DM_REFRESH_ERROR', test_id: 'OQ-103-1', title: 'SDTM_DM Table Refresh and Validation', expected_result, actual_result }; } const refreshSuccess = variables.refresh_success || false; if (!refreshSuccess) { actual_result = 'SDTM_DM table refresh failed'; return { status: 'fail', message: actual_result, code: 'SDTM_DM_REFRESH_FAILED', test_id: 'OQ-103-1', title: 'SDTM_DM Table Refresh and Validation', expected_result, actual_result }; } if (auditStep.error) { return { status: 'fail', message: 'Failed to check audit trail', code: 'SDTM_DM_AUDIT_ERROR', test_id: 'OQ-103-1', title: 'SDTM_DM Table Refresh and Validation', expected_result, actual_result }; } const hasRefreshOperations = variables.has_refresh_operations || false; const refreshCount = variables.refresh_count || 0; const refreshUsers = variables.refresh_users || []; const avgDuration = variables.avg_duration_ms || 0; if (hasRefreshOperations) { actual_result = `SDTM_DM table refreshed successfully. ${refreshCount} refresh operations found. Users: ${refreshUsers.join(', ')}. Avg duration: ${avgDuration.toFixed(0)}ms`; return { status: 'pass', message: actual_result, code: 'SDTM_DM_REFRESH_PASSED', test_id: 'OQ-103-1', title: 'SDTM_DM Table Refresh and Validation', expected_result, actual_result }; } else { actual_result = 'SDTM_DM table refreshed but no audit trail found'; return { status: 'pass', message: actual_result, code: 'SDTM_DM_REFRESH_NO_AUDIT', test_id: 'OQ-103-1', title: 'SDTM_DM Table Refresh and Validation', expected_result, actual_result }; } }"
 } 
