@@ -5,7 +5,7 @@
   "test_code": "OQ-102-2",
   "test_seq": 2,
   "test_suite": "OQ-102",
-  "test_suite_title": "Data Transformation",
+  "test_suite_title": "Data Ingestion",
   "category": "OQ",
   "manual_procedure": "Check schema evolution support",
   "api_calls": [

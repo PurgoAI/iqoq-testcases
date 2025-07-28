@@ -5,7 +5,7 @@
   "test_code": "OQ-102-1",
   "test_seq": 1,
   "test_suite": "OQ-102",
-  "test_suite_title": "Data Transformation",
+  "test_suite_title": "Data Ingestion",
   "category": "OQ",
   "manual_procedure": "Check bronze layer location",
   "api_calls": [
