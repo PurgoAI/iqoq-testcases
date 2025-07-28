@@ -1,13 +1,13 @@
 {
   "title": "Auto-Termination Validation",
-  "test_description": "Check auto-termination setting - Auto-termination configured with autotermination_minutes ≤ 120 and > 0",
+  "test_description": "Validate that the Databricks cluster has auto-termination configured with appropriate timeout settings",
   "version": "1.0",
   "test_code": "OQ-101-4",
   "test_seq": 4,
   "test_suite": "OQ-101",
   "test_suite_title": "Cluster Availability",
   "category": "OQ",
-  "manual_procedure": "Check the cluster's auto-termination setting via the UI or API. Confirm that auto-termination is set to 120 minutes or less (or as configured).",
+  "manual_procedure": "Check auto-termination setting",
   "api_calls": [
     {
       "step": 1,
@@ -21,9 +21,9 @@
       "payload": {
         "cluster_id": "${cluster_id}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const autoTermMinutes = responseData.autotermination_minutes || 0; const clusterName = responseData.cluster_name || 'Unknown'; logger.debug('Cluster auto-termination:', { autoTermMinutes, clusterName }); return { ...currentVariables, auto_termination_minutes: autoTermMinutes, cluster_name: clusterName }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const autoTermMinutes = responseData?.autotermination_minutes || 0; const clusterName = responseData?.cluster_name || 'Unknown'; return { ...currentVariables, auto_termination_minutes: autoTermMinutes, cluster_name: clusterName }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.get_cluster_info; if (clusterStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result: 'Auto-termination: ≤120 min.', actual_result: 'No cluster information.' }; } const apiOutput = clusterStep.data; try { const maxAutoTermination = variables.oq_101_4_max_auto_termination !== undefined ? variables.oq_101_4_max_auto_termination : 120; const minAutoTermination = variables.oq_101_4_min_auto_termination !== undefined ? variables.oq_101_4_min_auto_termination : 0; const expected_result = `Auto-termination: ≤${maxAutoTermination} min.`; const autoTermMinutes = apiOutput.autotermination_minutes || 0; const actual_result = `Auto-termination: ${autoTermMinutes} min`; if (autoTermMinutes <= maxAutoTermination && autoTermMinutes > minAutoTermination) { return { status: 'pass', message: `Auto-termination is set to ${autoTermMinutes} minutes, within the required range.`, code: 'VALID_AUTO_TERMINATION', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result, actual_result }; } else { return { status: 'fail', message: `Auto-termination is set to ${autoTermMinutes} minutes, which is outside the required range (${minAutoTermination}-${maxAutoTermination}).`, code: 'INVALID_AUTO_TERMINATION', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result, actual_result }; } } catch (error) { return { status: 'fail', message: 'Error processing auto-termination data: ' + error.message, code: 'PROCESSING_ERROR', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result: 'Auto-termination: ≤120 min.', actual_result: 'Error processing data.' }; } }"
+  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.get_cluster_info; const maxAutoTermination = variables.oq_101_4_max_auto_termination || 120; const minAutoTermination = variables.oq_101_4_min_auto_termination || 0; const expected_result = `Auto-termination: ≤${maxAutoTermination} min`; let actual_result = 'Auto-termination: Not found'; if (clusterStep.error) { return { status: 'fail', message: 'Failed to get cluster information', code: 'CLUSTER_INFO_ERROR', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result, actual_result }; } const autoTermMinutes = variables.auto_termination_minutes || 0; actual_result = `Auto-termination: ${autoTermMinutes} min`; if (autoTermMinutes === 0) { return { status: 'fail', message: 'Auto-termination is disabled (set to 0 minutes)', code: 'AUTO_TERMINATION_DISABLED', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result, actual_result }; } if (autoTermMinutes < minAutoTermination) { return { status: 'fail', message: `Auto-termination is set to ${autoTermMinutes} minutes, which is below the minimum requirement of ${minAutoTermination} minutes`, code: 'AUTO_TERMINATION_TOO_LOW', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result, actual_result }; } if (autoTermMinutes > maxAutoTermination) { return { status: 'fail', message: `Auto-termination is set to ${autoTermMinutes} minutes, which exceeds the maximum requirement of ${maxAutoTermination} minutes`, code: 'AUTO_TERMINATION_TOO_HIGH', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result, actual_result }; } return { status: 'pass', message: `Auto-termination is properly configured at ${autoTermMinutes} minutes (within ${minAutoTermination}-${maxAutoTermination} range)`, code: 'AUTO_TERMINATION_VALID', test_id: 'OQ-101-4', title: 'Auto-Termination Validation', expected_result, actual_result }; }"
 } 
