@@ -6,7 +6,7 @@
   "manual_procedure": "Check SDTM_DM table refresh and validation",
   "test_seq": 1,
   "test_suite": "OQ-103",
-  "test_suite_title": "SDTM Blood Pressure Validation",
+  "test_suite_title": "Data Transformation",
   "category": "OQ",
   "api_calls": [
     {
