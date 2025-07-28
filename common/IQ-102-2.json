@@ -14,7 +14,7 @@
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/unity-catalog/metastores",
       "headers": {
-        "Authorization": "Bearer ${invalid_token}",
+        "Authorization": "Bearer dapi_invalid_token_12345",
         "Content-Type": "application/json"
       },
       "payload": {},
@@ -22,6 +22,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const tokenStep = stepResults.test_invalid_token; const expected_result = 'Access: Denied; Audit log entry: < 5 min'; let actual_result = 'Access: Unknown'; if (!tokenStep) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } const statusCode = tokenStep.status; if (statusCode === 401 || statusCode === 403) { actual_result = 'Access: Denied (status ' + statusCode + ')'; return { status: 'pass', message: 'Credential rotation validated - expired token correctly rejected with ' + statusCode, code: 'TOKEN_VALIDATION_WORKING', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } else { actual_result = 'Access: Allowed (status ' + statusCode + ')'; return { status: 'fail', message: 'Credential validation failed - expired token accepted with status ' + statusCode, code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } }",
+  "parser_code": "function aggregateResults(stepResults) { const tokenStep = stepResults.test_invalid_token; const expected_result = 'Access: Denied'; let actual_result = 'Access: Unknown'; if (tokenStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } const statusCode = tokenStep.status; if (statusCode === 401 || statusCode === 403) { actual_result = 'Access: Denied (status ' + statusCode + ')'; return { status: 'pass', message: 'Invalid token correctly rejected', code: 'TOKEN_VALIDATION_WORKING', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } else { actual_result = 'Access: Allowed (status ' + statusCode + ')'; return { status: 'fail', message: 'Invalid token was accepted', code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } }",
   "manual_procedure": "Attempt expired token access."
 }

@@ -10,7 +10,7 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "test_scim_access",
+      "name": "test_authorized_access",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Users",
       "headers": {
@@ -18,9 +18,20 @@
       },
       "payload": {},
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 2,
+      "name": "test_unauthorized_access",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Users",
+      "headers": {
+        "Authorization": "Bearer invalid_token_12345"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const scimStep = stepResults.test_scim_access; const expected_result = '403 Forbidden'; const actual_result = 'HTTP ' + (scimStep.status || 'unknown') + ' response'; if (!scimStep) { return { status: 'fail', message: 'No response received from SCIM API', code: 'NO_RESPONSE', test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; } const statusCode = scimStep.status; const apiOutput = scimStep.data; if (apiOutput && apiOutput.Resources && statusCode === 200) { return { status: 'pass', message: 'Admin console access verified', code: 'ACCESS_VERIFIED', test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; } if (statusCode === 403) { return { status: 'pass', message: 'Admin console properly secured', code: 'ACCESS_RESTRICTED', test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; } if (statusCode === 401) { return { status: 'fail', message: 'Authentication failed for admin console', code: 'AUTHENTICATION_FAILED', test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; } return { status: 'fail', message: 'Unexpected response from admin console: ' + statusCode, code: 'HTTP_' + statusCode, test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; }",
+  "parser_code": "function aggregateResults(stepResults) { const authorizedStep = stepResults.test_authorized_access; const unauthorizedStep = stepResults.test_unauthorized_access; const expected_result = 'Authorized: 200/403, Unauthorized: 401/403'; let actual_result = 'Not tested'; if (!authorizedStep || !unauthorizedStep) { return { status: 'fail', message: 'Missing API responses', code: 'NO_RESPONSE', test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; } const authorizedStatus = authorizedStep.status; const unauthorizedStatus = unauthorizedStep.status; actual_result = `Authorized: ${authorizedStatus}, Unauthorized: ${unauthorizedStatus}`; const authorizedSuccess = authorizedStatus === 200 || authorizedStatus === 403; const unauthorizedSuccess = unauthorizedStatus === 401 || unauthorizedStatus === 403; if (authorizedSuccess && unauthorizedSuccess) { return { status: 'pass', message: 'Admin console access control working properly', code: 'ACCESS_CONTROL_VERIFIED', test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; } else { return { status: 'fail', message: 'Admin console access control not working properly', code: 'ACCESS_CONTROL_FAILED', test_id: 'IQ-101-3', title: 'Admin Console Access', expected_result, actual_result }; } }",
   "manual_procedure": "Attempt unauthorized access via SCIM API."
 }
