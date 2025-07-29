@@ -6,7 +6,7 @@
   "manual_procedure": "While logged in, click Catalog on the left hand navigation menu and click Delta Sharing in the top center. Switch to the \"Shared by Me\" tab and click \"Share Data\" on the top right then enter Share name and description and click \"Save and Continue\"",
   "test_seq": 1,
   "test_suite": "OQ-112",
-  "test_suite_title": "Delta Sharing Configuration",
+  "test_suite_title": "Delta Sharing",
   "category": "OQ",
   "api_calls": [
     {

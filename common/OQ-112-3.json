@@ -6,7 +6,7 @@
   "manual_procedure": "Press \"Save and Continue\" in the \"Add notebooks\" section, then in the \"Add recipients\" section click the \"Select a recipient\" drop down and click \"Create new recipient\". After filling out Name, Type, and Sharing Identifier (if recipient is a Databricks customer) click \"Create and add recipient\" then click \"Share data\"",
   "test_seq": 3,
   "test_suite": "OQ-112",
-  "test_suite_title": "Delta Sharing Configuration",
+  "test_suite_title": "Delta Sharing",
   "category": "OQ",
   "api_calls": [
     {

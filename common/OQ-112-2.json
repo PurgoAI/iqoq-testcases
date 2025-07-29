@@ -6,7 +6,7 @@
   "manual_procedure": "In the \"Add data assets\" section, search and select a table you'd like to have as part of the data share.",
   "test_seq": 2,
   "test_suite": "OQ-112",
-  "test_suite_title": "Delta Sharing Configuration",
+  "test_suite_title": "Delta Sharing",
   "category": "OQ",
   "api_calls": [
     {
