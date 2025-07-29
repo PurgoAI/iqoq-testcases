@@ -1,6 +1,6 @@
 {
   "title": "SDTM_DM Table Refresh and Validation",
-  "test_description": "SDTM_DM Table Refresh and Validation - Refreshes the materialized view ${catalog_name}.silver.sdtm_dm and validates table existence, refresh operations, and transformation audit trail.",
+  "test_description": "SDTM_DM Table Refresh and Validation - Refreshes the materialized view silver.sdtm_dm and validates table existence, refresh operations, and transformation audit trail.",
   "version": "1.0",
   "test_code": "OQ-103-1",
   "manual_procedure": "Check SDTM_DM table refresh and validation",
