@@ -13,7 +13,7 @@
       "step": 1,
       "name": "validate_bronze_dependencies",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.bronze.demographics&include_entity_lineage=true",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.bronze.demographics&include_entity_lineage=true",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -24,7 +24,7 @@
       "step": 2,
       "name": "validate_silver_dependencies",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.silver.sdtm_dm&include_entity_lineage=true",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.silver.sdtm_dm&include_entity_lineage=true",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -35,7 +35,7 @@
       "step": 3,
       "name": "validate_gold_dependencies",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.gold.patient_summary&include_entity_lineage=true",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.gold.patient_summary&include_entity_lineage=true",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"

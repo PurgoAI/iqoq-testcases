@@ -19,7 +19,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT COUNT(*) as total_records, SUM(CASE WHEN systolic_bp IS NULL THEN 1 ELSE 0 END) as null_systolic, SUM(CASE WHEN diastolic_bp IS NULL THEN 1 ELSE 0 END) as null_diastolic, SUM(CASE WHEN heart_rate IS NULL THEN 1 ELSE 0 END) as null_heart_rate, SUM(CASE WHEN systolic_bp < 90 OR systolic_bp > 180 THEN 1 ELSE 0 END) as invalid_systolic, SUM(CASE WHEN diastolic_bp < 60 OR diastolic_bp > 120 THEN 1 ELSE 0 END) as invalid_diastolic FROM iq_oq_demo.silver.sdtm_dm",
+        "statement": "SELECT COUNT(*) as total_records, SUM(CASE WHEN systolic_bp IS NULL THEN 1 ELSE 0 END) as null_systolic, SUM(CASE WHEN diastolic_bp IS NULL THEN 1 ELSE 0 END) as null_diastolic, SUM(CASE WHEN heart_rate IS NULL THEN 1 ELSE 0 END) as null_heart_rate, SUM(CASE WHEN systolic_bp < 90 OR systolic_bp > 180 THEN 1 ELSE 0 END) as invalid_systolic, SUM(CASE WHEN diastolic_bp < 60 OR diastolic_bp > 120 THEN 1 ELSE 0 END) as invalid_diastolic FROM ${catalog_name}.silver.sdtm_dm",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

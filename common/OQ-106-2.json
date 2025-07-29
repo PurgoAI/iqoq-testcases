@@ -19,7 +19,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "-- Silver layer query test\nselect patient_id, avg(weight_kg), avg(heart_rate) from iq_oq_demo.silver.sdtm_dm group by patient_id",
+        "statement": "-- Silver layer query test\nselect patient_id, avg(weight_kg), avg(heart_rate) from ${catalog_name}.silver.sdtm_dm group by patient_id",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

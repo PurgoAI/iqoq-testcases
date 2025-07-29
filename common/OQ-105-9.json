@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "REVOKE SELECT ON TABLE iq_oq_demo.silver.sdtm_dm FROM `${target_user_email}`",
+        "statement": "REVOKE SELECT ON TABLE ${catalog_name}.silver.sdtm_dm FROM `${target_user_email}`",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -46,7 +46,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

@@ -13,7 +13,7 @@
       "step": 1,
       "name": "get_lineage_graph",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.gold.patient_summary&include_entity_lineage=true",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.gold.patient_summary&include_entity_lineage=true",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"

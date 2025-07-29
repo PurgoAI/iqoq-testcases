@@ -1,6 +1,6 @@
 {
   "title": "SDTM_DM Table Refresh and Validation",
-  "test_description": "SDTM_DM Table Refresh and Validation - Refreshes the materialized view iq_oq_demo.silver.sdtm_dm and validates table existence, refresh operations, and transformation audit trail.",
+  "test_description": "SDTM_DM Table Refresh and Validation - Refreshes the materialized view ${catalog_name}.silver.sdtm_dm and validates table existence, refresh operations, and transformation audit trail.",
   "version": "1.0",
   "test_code": "OQ-103-1",
   "manual_procedure": "Check SDTM_DM table refresh and validation",
@@ -19,7 +19,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SHOW TABLES IN iq_oq_demo.silver LIKE 'sdtm_dm'",
+        "statement": "SHOW TABLES IN ${catalog_name}.silver LIKE 'sdtm_dm'",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -35,7 +35,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "REFRESH TABLE iq_oq_demo.silver.sdtm_dm",
+        "statement": "REFRESH TABLE ${catalog_name}.silver.sdtm_dm",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "50s"
       },
@@ -51,7 +51,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT statement_id, statement_text, executed_by, executed_by_user_id, execution_status, total_duration_ms FROM system.query.history WHERE statement_text LIKE '%REFRESH%iq_oq_demo.silver.sdtm_dm%' AND execution_status = 'FINISHED' ORDER BY total_duration_ms DESC LIMIT 10",
+        "statement": "SELECT statement_id, statement_text, executed_by, executed_by_user_id, execution_status, total_duration_ms FROM system.query.history WHERE statement_text LIKE '%REFRESH%${catalog_name}.silver.sdtm_dm%' AND execution_status = 'FINISHED' ORDER BY total_duration_ms DESC LIMIT 10",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

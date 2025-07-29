@@ -19,7 +19,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "-- Avg heart rate across patients\nselect avg(avg_heart_rate) from iq_oq_demo.gold.patient_summary",
+        "statement": "-- Avg heart rate across patients\nselect avg(avg_heart_rate) from ${catalog_name}.gold.patient_summary",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE CATALOG ON CATALOG iq_oq_demo TO TEMP_GROUP_OQ104",
+        "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_GROUP_OQ104",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -34,7 +34,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE SCHEMA ON SCHEMA iq_oq_demo.silver TO TEMP_GROUP_OQ104",
+        "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_GROUP_OQ104",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -50,7 +50,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SHOW TABLES IN iq_oq_demo.silver",
+        "statement": "SHOW TABLES IN ${catalog_name}.silver",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

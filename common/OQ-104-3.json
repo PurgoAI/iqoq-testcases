@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SHOW TABLES FROM iq_oq_demo.silver LIKE 'sdtm_dm'",
+        "statement": "SHOW TABLES FROM ${catalog_name}.silver LIKE 'sdtm_dm'",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -34,7 +34,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'silver' AND table_catalog = 'iq_oq_demo' AND table_type = 'BASE TABLE' LIMIT 1",
+        "statement": "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = 'silver' AND table_catalog = '${catalog_name}' AND table_type = 'BASE TABLE' LIMIT 1",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -50,7 +50,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "DESCRIBE HISTORY iq_oq_demo.bronze.demographics",
+        "statement": "DESCRIBE HISTORY ${catalog_name}.bronze.demographics",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

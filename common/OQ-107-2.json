@@ -13,7 +13,7 @@
       "step": 1,
       "name": "get_recursive_upstream",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.silver.sdtm_dm&include_entity_lineage=true",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.silver.sdtm_dm&include_entity_lineage=true",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -24,7 +24,7 @@
       "step": 2,
       "name": "get_recursive_downstream",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=iq_oq_demo.bronze.demographics&include_entity_lineage=true",
+      "api_url": "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.bronze.demographics&include_entity_lineage=true",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
