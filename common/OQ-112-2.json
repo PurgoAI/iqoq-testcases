@@ -51,7 +51,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "ALTER SHARE test_data_share ADD TABLE ${catalog_name}.silver.patient_visit_logs",
+        "statement": "ALTER SHARE test_data_share ADD TABLE ${catalog_name}.bronze.demographics",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
