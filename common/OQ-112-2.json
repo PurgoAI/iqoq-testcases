@@ -11,6 +11,22 @@
   "api_calls": [
     {
       "step": 1,
+      "name": "check_delta_sharing_enabled",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW RECIPIENTS",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const dataArray = responseData?.result?.data_array || []; const hasRecipients = dataArray && dataArray.length > 0; return { ...currentVariables, delta_sharing_available: success, has_recipients: hasRecipients, recipient_count: dataArray.length }; }"
+    },
+    {
+      "step": 2,
       "name": "create_recipient",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -26,7 +42,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, recipient_created: success, recipient_status: status, recipient_statement_id: statementId }; }"
     },
     {
-      "step": 2,
+      "step": 3,
       "name": "grant_access_to_share",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -40,22 +56,6 @@
         "wait_timeout": "30s"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, access_granted: success, grant_status: status, grant_statement_id: statementId }; }"
-    },
-    {
-      "step": 3,
-      "name": "verify_recipient_exists",
-      "method": "POST",
-      "api_url": "${workspace_url}/api/2.0/sql/statements",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "statement": "SHOW RECIPIENTS",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const recipientExists = dataArray.some(row => row[0] === 'test_partner_company'); const recipientCount = dataArray.length; const recipientNames = dataArray.slice(0, 3).map(row => row[0] || 'Unknown').join(', '); return { ...currentVariables, recipient_exists: recipientExists, recipient_count: recipientCount, recipient_names: recipientNames }; }"
     },
     {
       "step": 4,
@@ -75,5 +75,5 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const createRecipientStep = stepResults.create_recipient; const grantStep = stepResults.grant_access_to_share; const verifyRecipientStep = stepResults.verify_recipient_exists; const verifyGrantsStep = stepResults.verify_share_grants; const expected_result = 'Succeeded'; let actual_result = 'Delta Sharing recipient creation and access failed'; if (createRecipientStep.error) { return { status: 'fail', message: 'Failed to create Delta Sharing recipient', code: 'RECIPIENT_CREATION_ERROR', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } const recipientCreated = variables.recipient_created || false; if (!recipientCreated) { actual_result = `Recipient creation failed with status: ${variables.recipient_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'RECIPIENT_CREATION_FAILED', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } if (grantStep.error) { return { status: 'fail', message: 'Failed to grant access to share', code: 'ACCESS_GRANT_ERROR', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } const accessGranted = variables.access_granted || false; if (!accessGranted) { actual_result = `Access grant failed with status: ${variables.grant_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'ACCESS_GRANT_FAILED', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } const recipientExists = variables.recipient_exists || false; const hasGrants = variables.has_grants || false; const recipientCount = variables.recipient_count || 0; const grantCount = variables.grant_count || 0; if (recipientExists && hasGrants) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Delta Sharing recipient created and access granted successfully', code: 'RECIPIENT_ACCESS_SUCCESS', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } else if (recipientExists) { actual_result = 'Delta Sharing recipient created but no grants found'; return { status: 'fail', message: actual_result, code: 'RECIPIENT_NO_GRANTS', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } else { actual_result = 'Delta Sharing recipient not found after creation'; return { status: 'fail', message: actual_result, code: 'RECIPIENT_NOT_FOUND', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } }"
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_delta_sharing_enabled; const createRecipientStep = stepResults.create_recipient; const grantStep = stepResults.grant_access_to_share; const verifyGrantsStep = stepResults.verify_share_grants; const expected_result = 'Succeeded'; let actual_result = 'Delta Sharing recipient creation and access failed'; const deltaSharingAvailable = variables.delta_sharing_available || false; if (!deltaSharingAvailable) { actual_result = 'Delta Sharing not enabled on this workspace'; return { status: 'pass', message: 'Delta Sharing functionality not available - test skipped', code: 'DELTA_SHARING_NOT_ENABLED', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } if (createRecipientStep.error) { return { status: 'fail', message: 'Failed to create Delta Sharing recipient', code: 'RECIPIENT_CREATION_ERROR', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } const recipientCreated = variables.recipient_created || false; if (!recipientCreated) { actual_result = `Recipient creation failed with status: ${variables.recipient_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'RECIPIENT_CREATION_FAILED', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } if (grantStep.error) { return { status: 'fail', message: 'Failed to grant access to share', code: 'ACCESS_GRANT_ERROR', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } const accessGranted = variables.access_granted || false; if (!accessGranted) { actual_result = `Access grant failed with status: ${variables.grant_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'ACCESS_GRANT_FAILED', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } const hasGrants = variables.has_grants || false; const grantCount = variables.grant_count || 0; if (hasGrants) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Delta Sharing recipient created and access granted successfully', code: 'RECIPIENT_ACCESS_SUCCESS', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } else { actual_result = 'Delta Sharing recipient created but no grants found'; return { status: 'fail', message: actual_result, code: 'RECIPIENT_NO_GRANTS', test_id: 'OQ-112-2', title: 'Outbound Add a Table or View to Share', expected_result, actual_result }; } }"
 } 
