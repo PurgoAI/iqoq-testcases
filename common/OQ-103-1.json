@@ -37,9 +37,9 @@
       "payload": {
         "statement": "REFRESH TABLE iq_oq_demo.silver.sdtm_dm",
         "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "0s"
+        "wait_timeout": "60s"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const refreshStatus = responseData?.status?.state || 'UNKNOWN'; const refreshSuccess = refreshStatus === 'SUCCEEDED' || refreshStatus === 'RUNNING'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, refresh_status: refreshStatus, refresh_success: refreshSuccess, refresh_statement_id: statementId }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const refreshStatus = responseData?.status?.state || 'UNKNOWN'; const refreshSuccess = refreshStatus === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, refresh_status: refreshStatus, refresh_success: refreshSuccess, refresh_statement_id: statementId }; }"
     },
     {
       "step": 3,
