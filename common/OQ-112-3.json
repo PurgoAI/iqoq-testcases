@@ -11,6 +11,22 @@
   "api_calls": [
     {
       "step": 1,
+      "name": "check_delta_sharing_enabled",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW RECIPIENTS",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const dataArray = responseData?.result?.data_array || []; const hasRecipients = dataArray && dataArray.length > 0; const error = responseData?.status?.error?.message || ''; const isDeltaSharingDisabled = error.includes('External Delta Sharing is not enabled'); return { ...currentVariables, delta_sharing_available: success, has_recipients: hasRecipients, recipient_count: dataArray.length, delta_sharing_disabled: isDeltaSharingDisabled }; }"
+    },
+    {
+      "step": 2,
       "name": "check_share_exists",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -24,22 +40,6 @@
         "wait_timeout": "30s"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const testShareExists = dataArray.some(row => row[0] === 'test_data_share'); const shareCount = dataArray.length; return { ...currentVariables, test_share_exists: testShareExists, total_share_count: shareCount }; }"
-    },
-    {
-      "step": 2,
-      "name": "remove_materialized_view_from_share",
-      "method": "POST",
-      "api_url": "${workspace_url}/api/2.0/sql/statements",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "statement": "ALTER SHARE test_data_share REMOVE MATERIALIZED_VIEW iq_oq_demo.silver.sdtm_dm",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, view_removed: success, remove_status: status, remove_statement_id: statementId }; }"
     },
     {
       "step": 3,
@@ -75,5 +75,5 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_share_exists; const removeViewStep = stepResults.remove_materialized_view_from_share; const dropShareStep = stepResults.drop_share; const verifyStep = stepResults.verify_cleanup; const expected_result = 'Succeeded'; let actual_result = 'Delta Sharing cleanup failed'; const testShareExists = variables.test_share_exists || false; const shareDropped = variables.share_dropped || false; const testShareStillExists = variables.test_share_still_exists || false; const finalShareCount = variables.final_share_count || 0; if (!testShareExists) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Test share does not exist - cleanup not needed', code: 'CLEANUP_NOT_NEEDED', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } if (shareDropped && !testShareStillExists) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Delta Sharing cleanup completed successfully', code: 'CLEANUP_SUCCESS', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } else if (testShareStillExists) { actual_result = 'Delta Sharing cleanup failed - test share still exists'; return { status: 'fail', message: actual_result, code: 'CLEANUP_INCOMPLETE', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } else { actual_result = 'Delta Sharing cleanup partially completed'; return { status: 'pass', message: actual_result, code: 'CLEANUP_PARTIAL', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } }"
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_delta_sharing_enabled; const checkShareStep = stepResults.check_share_exists; const dropShareStep = stepResults.drop_share; const verifyStep = stepResults.verify_cleanup; const expected_result = 'Succeeded'; let actual_result = 'Delta Sharing cleanup failed'; const deltaSharingAvailable = variables.delta_sharing_available || false; const deltaSharingDisabled = variables.delta_sharing_disabled || false; if (!deltaSharingAvailable || deltaSharingDisabled) { actual_result = 'Delta Sharing is not enabled on this workspace. Contact account admin to enable External Delta Sharing on the metastore.'; return { status: 'fail', message: 'Delta Sharing functionality not available', code: 'DELTA_SHARING_NOT_ENABLED', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } const testShareExists = variables.test_share_exists || false; const shareDropped = variables.share_dropped || false; const testShareStillExists = variables.test_share_still_exists || false; const finalShareCount = variables.final_share_count || 0; if (!testShareExists) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Test share does not exist - cleanup not needed', code: 'CLEANUP_NOT_NEEDED', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } if (shareDropped && !testShareStillExists) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Delta Sharing cleanup completed successfully', code: 'CLEANUP_SUCCESS', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } else if (testShareStillExists) { actual_result = 'Delta Sharing cleanup failed - test share still exists'; return { status: 'fail', message: actual_result, code: 'CLEANUP_INCOMPLETE', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } else { actual_result = 'Delta Sharing cleanup partially completed'; return { status: 'pass', message: actual_result, code: 'CLEANUP_PARTIAL', test_id: 'OQ-112-3', title: 'Outbound Create Recipient and Share', expected_result, actual_result }; } }"
 } 

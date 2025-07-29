@@ -11,6 +11,22 @@
   "api_calls": [
     {
       "step": 1,
+      "name": "check_delta_sharing_enabled",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW RECIPIENTS",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const dataArray = responseData?.result?.data_array || []; const hasRecipients = dataArray && dataArray.length > 0; const error = responseData?.status?.error?.message || ''; const isDeltaSharingDisabled = error.includes('External Delta Sharing is not enabled'); return { ...currentVariables, delta_sharing_available: success, has_recipients: hasRecipients, recipient_count: dataArray.length, delta_sharing_disabled: isDeltaSharingDisabled }; }"
+    },
+    {
+      "step": 2,
       "name": "create_share",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -24,22 +40,6 @@
         "wait_timeout": "30s"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, share_created: success, share_status: status, share_statement_id: statementId }; }"
-    },
-    {
-      "step": 2,
-      "name": "add_materialized_view_to_share",
-      "method": "POST",
-      "api_url": "${workspace_url}/api/2.0/sql/statements",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "statement": "ALTER SHARE test_data_share ADD MATERIALIZED_VIEW iq_oq_demo.silver.sdtm_dm",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, view_added: success, view_status: status, view_statement_id: statementId }; }"
     },
     {
       "step": 3,
@@ -75,5 +75,5 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const createStep = stepResults.create_share; const addViewStep = stepResults.add_materialized_view_to_share; const verifyStep = stepResults.verify_share_details; const contentsStep = stepResults.verify_share_contents; const expected_result = 'Succeeded'; let actual_result = 'Delta Sharing share creation failed'; if (createStep.error) { return { status: 'fail', message: 'Failed to create Delta Sharing share', code: 'SHARE_CREATION_ERROR', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } const shareCreated = variables.share_created || false; if (!shareCreated) { actual_result = `Share creation failed with status: ${variables.share_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'SHARE_CREATION_FAILED', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } const shareExists = variables.share_exists || false; if (shareExists) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Delta Sharing share created successfully', code: 'SHARE_CREATION_SUCCESS', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } else { actual_result = 'Delta Sharing share not found after creation'; return { status: 'fail', message: actual_result, code: 'SHARE_NOT_FOUND', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } }"
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_delta_sharing_enabled; const createStep = stepResults.create_share; const verifyStep = stepResults.verify_share_details; const contentsStep = stepResults.verify_share_contents; const expected_result = 'Succeeded'; let actual_result = 'Delta Sharing share creation failed'; const deltaSharingAvailable = variables.delta_sharing_available || false; const deltaSharingDisabled = variables.delta_sharing_disabled || false; if (!deltaSharingAvailable || deltaSharingDisabled) { actual_result = 'Delta Sharing is not enabled on this workspace. Contact account admin to enable External Delta Sharing on the metastore.'; return { status: 'fail', message: 'Delta Sharing functionality not available', code: 'DELTA_SHARING_NOT_ENABLED', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } if (createStep.error) { return { status: 'fail', message: 'Failed to create Delta Sharing share', code: 'SHARE_CREATION_ERROR', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } const shareCreated = variables.share_created || false; if (!shareCreated) { actual_result = `Share creation failed with status: ${variables.share_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'SHARE_CREATION_FAILED', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } const shareExists = variables.share_exists || false; if (shareExists) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Delta Sharing share created successfully', code: 'SHARE_CREATION_SUCCESS', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } else { actual_result = 'Delta Sharing share not found after creation'; return { status: 'fail', message: actual_result, code: 'SHARE_NOT_FOUND', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } }"
 } 
