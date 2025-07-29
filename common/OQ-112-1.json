@@ -1,0 +1,79 @@
+{
+  "title": "Outbound Create Share",
+  "test_description": "Validates Delta Sharing outbound share creation by creating a share, adding tables, and verifying share configuration",
+  "version": "1.0",
+  "test_code": "OQ-112-1",
+  "manual_procedure": "While logged in, click Catalog on the left hand navigation menu and click Delta Sharing in the top center. Switch to the \"Shared by Me\" tab and click \"Share Data\" on the top right then enter Share name and description and click \"Save and Continue\"",
+  "test_seq": 1,
+  "test_suite": "OQ-112",
+  "test_suite_title": "Delta Sharing Configuration",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "create_share",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "CREATE SHARE test_data_share COMMENT 'Test share for validation'",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, share_created: success, share_status: status, share_statement_id: statementId }; }"
+    },
+    {
+      "step": 2,
+      "name": "add_table_to_share",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "ALTER SHARE test_data_share ADD TABLE iq_oq_demo.silver.sdtm_dm",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const status = responseData?.status?.state || 'UNKNOWN'; const success = status === 'SUCCEEDED'; const statementId = responseData?.statement_id || ''; return { ...currentVariables, table_added: success, table_status: status, table_statement_id: statementId }; }"
+    },
+    {
+      "step": 3,
+      "name": "verify_share_details",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "DESCRIBE SHARE test_data_share",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const shareExists = dataArray && dataArray.length > 0; const shareInfo = shareExists ? dataArray[0] : null; return { ...currentVariables, share_exists: shareExists, share_info: shareInfo }; }"
+    },
+    {
+      "step": 4,
+      "name": "verify_share_contents",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SHOW ALL IN SHARE test_data_share",
+        "warehouse_id": "${warehouse_id}",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const hasTables = dataArray && dataArray.length > 0; const tableCount = hasTables ? dataArray.length : 0; const tableNames = hasTables ? dataArray.map(row => row[0] || 'Unknown').join(', ') : ''; return { ...currentVariables, has_tables: hasTables, table_count: tableCount, table_names: tableNames }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const createStep = stepResults.create_share; const addTableStep = stepResults.add_table_to_share; const verifyStep = stepResults.verify_share_details; const contentsStep = stepResults.verify_share_contents; const expected_result = 'Succeeded'; let actual_result = 'Delta Sharing share creation failed'; if (createStep.error) { return { status: 'fail', message: 'Failed to create Delta Sharing share', code: 'SHARE_CREATION_ERROR', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } const shareCreated = variables.share_created || false; if (!shareCreated) { actual_result = `Share creation failed with status: ${variables.share_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'SHARE_CREATION_FAILED', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } if (addTableStep.error) { return { status: 'fail', message: 'Failed to add table to share', code: 'TABLE_ADDITION_ERROR', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } const tableAdded = variables.table_added || false; if (!tableAdded) { actual_result = `Table addition failed with status: ${variables.table_status || 'UNKNOWN'}`; return { status: 'fail', message: actual_result, code: 'TABLE_ADDITION_FAILED', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } const shareExists = variables.share_exists || false; const hasTables = variables.has_tables || false; const tableCount = variables.table_count || 0; const tableNames = variables.table_names || ''; if (shareExists && hasTables) { actual_result = 'Succeeded'; return { status: 'pass', message: 'Delta Sharing share created successfully with tables', code: 'SHARE_CREATION_SUCCESS', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } else if (shareExists) { actual_result = 'Delta Sharing share created but no tables found'; return { status: 'fail', message: actual_result, code: 'SHARE_NO_TABLES', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } else { actual_result = 'Delta Sharing share not found after creation'; return { status: 'fail', message: actual_result, code: 'SHARE_NOT_FOUND', test_id: 'OQ-112-1', title: 'Outbound Create Share', expected_result, actual_result }; } }"
+} 
