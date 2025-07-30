@@ -38,9 +38,23 @@
     },
     {
       "step": 3,
+      "name": "get_group_id",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "filter": "displayName eq \"TEMP_GROUP_OQ104\""
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const groupId = responseData.Resources[0].id; return { ...currentVariables, group_id: groupId }; }"
+    },
+    {
+      "step": 4,
       "name": "add_user_to_group",
       "method": "PATCH",
-      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/TEMP_GROUP_OQ104",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -63,7 +77,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     },
     {
-      "step": 4,
+      "step": 5,
       "name": "test_select_access",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -80,6 +94,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const grantStep = stepResults.grant_select_to_group; const getUserStep = stepResults.get_user2_info; const addUserStep = stepResults.add_user_to_group; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query succeeds.'; let actual_result = ''; if (!grantStep || !grantStep.data || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } actual_result = 'Failed to grant SELECT permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!getUserStep || getUserStep.status !== 200 || !getUserStep.data || !getUserStep.data.id) { actual_result = 'Failed to get user2 information'; return { status: 'fail', message: 'Failed to get user2 information', code: 'USER_INFO_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!addUserStep || addUserStep.status !== 200) { actual_result = 'Failed to add user2 to group'; return { status: 'fail', message: 'Failed to add user2 to group TEMP_GROUP_OQ104', code: 'ADD_USER_TO_GROUP_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot select from ' + variables.catalog_name + '.silver.sdtm_dm after grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can select from ' + variables.catalog_name + '.silver.sdtm_dm after group grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_PASSED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; }",
+  "parser_code": "function aggregateResults(stepResults) { const grantStep = stepResults.grant_select_to_group; const getUserStep = stepResults.get_user2_info; const getGroupStep = stepResults.get_group_id; const addUserStep = stepResults.add_user_to_group; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query succeeds.'; let actual_result = ''; if (!grantStep || !grantStep.data || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } actual_result = 'Failed to grant SELECT permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!getUserStep || getUserStep.status !== 200 || !getUserStep.data || !getUserStep.data.id) { actual_result = 'Failed to get user2 information'; return { status: 'fail', message: 'Failed to get user2 information', code: 'USER_INFO_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!getGroupStep || getGroupStep.status !== 200 || !getGroupStep.data || !getGroupStep.data.Resources || getGroupStep.data.Resources.length === 0) { actual_result = 'Failed to find group TEMP_GROUP_OQ104'; return { status: 'fail', message: 'Failed to find group TEMP_GROUP_OQ104', code: 'GROUP_NOT_FOUND', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!addUserStep || addUserStep.status !== 200) { actual_result = 'Failed to add user2 to group'; return { status: 'fail', message: 'Failed to add user2 to group TEMP_GROUP_OQ104', code: 'ADD_USER_TO_GROUP_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot select from ' + variables.catalog_name + '.silver.sdtm_dm after grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can select from ' + variables.catalog_name + '.silver.sdtm_dm after group grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_PASSED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; }",
   "manual_procedure": "Grant the SELECT privilege on the table to the group TEMP_<ORG>_OQ104. Add user2 to the group. While logged in as the test user, run the SELECT query again."
 } 
