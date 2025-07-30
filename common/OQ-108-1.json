@@ -13,7 +13,7 @@
       "step": 1,
       "name": "check_notebook_permissions",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/permissions/notebooks/2040981268711970",
+      "api_url": "${workspace_url}/api/2.0/permissions/notebooks/${oq_108_1_notebook_id}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
