@@ -10,6 +10,58 @@
   "api_calls": [
     {
       "step": 1,
+      "name": "get_user2_info",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const user2Id = responseData.id; return { ...currentVariables, user2_id: user2Id }; }"
+    },
+    {
+      "step": 2,
+      "name": "get_group_id",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "filter": "displayName eq \"TEMP_GROUP_OQ104\""
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const groupId = responseData.Resources[0].id; return { ...currentVariables, group_id: groupId }; }"
+    },
+    {
+      "step": 3,
+      "name": "add_user_to_group",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [
+          {
+            "op": "add",
+            "value": {
+              "members": [
+                {
+                  "value": "${user2_id}"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 4,
       "name": "grant_catalog_permissions",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -25,7 +77,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     },
     {
-      "step": 2,
+      "step": 5,
       "name": "grant_schema_permissions",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -41,7 +93,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     },
     {
-      "step": 3,
+      "step": 6,
       "name": "test_list_tables",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -58,6 +110,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const grantCatalogStep = stepResults.grant_catalog_permissions; const grantSchemaStep = stepResults.grant_schema_permissions; const listTablesStep = stepResults.test_list_tables; let actual_result = ''; if (!grantCatalogStep || !grantCatalogStep.data || grantCatalogStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantCatalogStep && grantCatalogStep.data && grantCatalogStep.data.status && grantCatalogStep.data.status.error) { errorMsg = grantCatalogStep.data.status.error.message || grantCatalogStep.data.status.error; } actual_result = 'Failed to grant USE CATALOG permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_CATALOG_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing succeeds.', actual_result }; } if (!grantSchemaStep || !grantSchemaStep.data || grantSchemaStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantSchemaStep && grantSchemaStep.data && grantSchemaStep.data.status && grantSchemaStep.data.status.error) { errorMsg = grantSchemaStep.data.status.error.message || grantSchemaStep.data.status.error; } actual_result = 'Failed to grant USE SCHEMA permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SCHEMA_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing succeeds.', actual_result }; } if (!listTablesStep || !listTablesStep.data || listTablesStep.data.status.state !== 'SUCCEEDED') { actual_result = 'User2 cannot list tables in the schema.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot list tables in the schema', code: 'AUTH_LISTING_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing succeeds.', actual_result }; } let tableCount = 0; let tables = []; if (listTablesStep.data && listTablesStep.data.result && listTablesStep.data.result.data_array) { const dataArray = listTablesStep.data.result.data_array; tableCount = dataArray.length; tables = dataArray.map(function(row) { return row[0] || ''; }); } actual_result = 'User2 can list ' + tableCount + ' tables in the schema: ' + tables.join(', '); return { status: 'pass', message: 'Authorization validation passed: User2 can list ' + tableCount + ' tables in the schema', code: 'AUTH_LISTING_PASSED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing succeeds.', actual_result }; }",
-  "manual_procedure": "Grant USE CATALOG and USE SCHEMA on the target objects to the group TEMP_<ORG>_OQ104. Add the test user as a member of this group. While logged in as the test user, attempt to browse for the objects in the Catalog explorer."
+  "parser_code": "function aggregateResults(stepResults) { const getUserStep = stepResults.get_user2_info; const getGroupStep = stepResults.get_group_id; const addUserStep = stepResults.add_user_to_group; const grantCatalogStep = stepResults.grant_catalog_permissions; const grantSchemaStep = stepResults.grant_schema_permissions; const listTablesStep = stepResults.test_list_tables; let actual_result = ''; if (!getUserStep || getUserStep.status !== 200 || !getUserStep.data || !getUserStep.data.id) { actual_result = 'Failed to get user2 information'; return { status: 'fail', message: 'Failed to get user2 information', code: 'USER_INFO_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing Succeeded for granted objects', actual_result }; } if (!getGroupStep || getGroupStep.status !== 200 || !getGroupStep.data || !getGroupStep.data.Resources || getGroupStep.data.Resources.length === 0) { actual_result = 'Failed to find group TEMP_GROUP_OQ104'; return { status: 'fail', message: 'Failed to find group TEMP_GROUP_OQ104', code: 'GROUP_NOT_FOUND', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing Succeeded for granted objects', actual_result }; } if (!addUserStep || addUserStep.status !== 200) { actual_result = 'Failed to add user2 to group'; return { status: 'fail', message: 'Failed to add user2 to group TEMP_GROUP_OQ104', code: 'ADD_USER_TO_GROUP_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing Succeeded for granted objects', actual_result }; } if (!grantCatalogStep || !grantCatalogStep.data || grantCatalogStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantCatalogStep && grantCatalogStep.data && grantCatalogStep.data.status && grantCatalogStep.data.status.error) { errorMsg = grantCatalogStep.data.status.error.message || grantCatalogStep.data.status.error; } actual_result = 'Failed to grant USE CATALOG permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_CATALOG_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing Succeeded for granted objects', actual_result }; } if (!grantSchemaStep || !grantSchemaStep.data || grantSchemaStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantSchemaStep && grantSchemaStep.data && grantSchemaStep.data.status && grantSchemaStep.data.status.error) { errorMsg = grantSchemaStep.data.status.error.message || grantSchemaStep.data.status.error; } actual_result = 'Failed to grant USE SCHEMA permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SCHEMA_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing Succeeded for granted objects', actual_result }; } if (!listTablesStep || !listTablesStep.data || listTablesStep.data.status.state !== 'SUCCEEDED') { actual_result = 'User2 cannot list tables in the schema.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot list tables in the schema', code: 'AUTH_LISTING_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing Succeeded for granted objects', actual_result }; } let tableCount = 0; let tables = []; if (listTablesStep.data && listTablesStep.data.result && listTablesStep.data.result.data_array) { const dataArray = listTablesStep.data.result.data_array; tableCount = dataArray.length; tables = dataArray.map(function(row) { return row[0] || ''; }); } actual_result = 'User2 can list ' + tableCount + ' tables in the schema: ' + tables.join(', '); return { status: 'pass', message: 'Authorization validation passed: User2 can list ' + tableCount + ' tables in the schema', code: 'AUTH_LISTING_PASSED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result: 'Result: Listing Succeeded for granted objects', actual_result }; }",
+  "manual_procedure": "Grant USE CATALOG, and USE SCHEMA to group TEMP_<ORG>_OQ104 and add user as a member of this group. While logged in with user account, click Catalog on left hand navigation menu and attempt to browse for <catalog name>, <schema name> and <table name>."
 } 

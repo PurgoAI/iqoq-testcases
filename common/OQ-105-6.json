@@ -10,58 +10,6 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "get_user2_info",
-      "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
-      "headers": {
-        "Authorization": "Bearer ${token2}",
-        "Content-Type": "application/json"
-      },
-      "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const user2Id = responseData.id; return { ...currentVariables, user2_id: user2Id }; }"
-    },
-    {
-      "step": 2,
-      "name": "get_group_id",
-      "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "filter": "displayName eq \"TEMP_GROUP_OQ104\""
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { const groupId = responseData.Resources[0].id; return { ...currentVariables, group_id: groupId }; }"
-    },
-    {
-      "step": 3,
-      "name": "add_user_to_group",
-      "method": "PATCH",
-      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-        "Operations": [
-          {
-            "op": "add",
-            "value": {
-              "members": [
-                {
-                  "value": "${user2_id}"
-                }
-              ]
-            }
-          }
-        ]
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
-    },
-    {
-      "step": 4,
       "name": "revoke_select_from_group",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -77,7 +25,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     },
     {
-      "step": 5,
+      "step": 2,
       "name": "test_select_access",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -94,6 +42,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const getUserStep = stepResults.get_user2_info; const getGroupStep = stepResults.get_group_id; const addUserStep = stepResults.add_user_to_group; const revokeStep = stepResults.revoke_select_from_group; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query fails.'; let actual_result = ''; if (!getUserStep || getUserStep.status !== 200 || !getUserStep.data || !getUserStep.data.id) { actual_result = 'Failed to get user2 information'; return { status: 'fail', message: 'Failed to get user2 information', code: 'USER_INFO_FAILED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; } if (!getGroupStep || getGroupStep.status !== 200 || !getGroupStep.data || !getGroupStep.data.Resources || getGroupStep.data.Resources.length === 0) { actual_result = 'Failed to find group TEMP_GROUP_OQ104'; return { status: 'fail', message: 'Failed to find group TEMP_GROUP_OQ104', code: 'GROUP_NOT_FOUND', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; } if (!addUserStep || addUserStep.status !== 200) { actual_result = 'Failed to add user2 to group'; return { status: 'fail', message: 'Failed to add user2 to group TEMP_GROUP_OQ104', code: 'ADD_USER_TO_GROUP_FAILED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; } if (!revokeStep || !revokeStep.data || revokeStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (revokeStep && revokeStep.data && revokeStep.data.status && revokeStep.data.status.error) { errorMsg = revokeStep.data.status.error.message || revokeStep.data.status.error; } actual_result = 'Failed to revoke SELECT permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'REVOKE_SELECT_FAILED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; } const data = accessStep.data; if (data && data.status && data.status.state === 'FAILED') { const errorMsg = data.status.error ? data.status.error.message : ''; if (errorMsg && (errorMsg.indexOf('permission') !== -1 || errorMsg.indexOf('Permission') !== -1 || errorMsg.indexOf('PERMISSION') !== -1 || errorMsg.indexOf('access') !== -1 || errorMsg.indexOf('Access') !== -1 || errorMsg.indexOf('ACCESS') !== -1 || errorMsg.indexOf('denied') !== -1 || errorMsg.indexOf('Denied') !== -1 || errorMsg.indexOf('DENIED') !== -1 || errorMsg.indexOf('Forbidden') !== -1 || errorMsg.indexOf('FORBIDDEN') !== -1 || errorMsg.indexOf('forbidden') !== -1)) { actual_result = 'Access denied: ' + errorMsg; return { status: 'pass', message: 'Authorization validation passed: User2 SELECT access properly denied after revoke', code: 'AUTH_ACCESS_ROLE_REVOKE_PASSED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; } actual_result = 'Query failed: ' + errorMsg; } else { actual_result = 'Query did not fail as expected.'; } return { status: 'fail', message: 'Authorization validation failed: User2 SELECT access was not revoked', code: 'AUTH_ACCESS_ROLE_REVOKE_FAILED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; }",
-  "manual_procedure": "Add user2 to the group TEMP_<ORG>_OQ104. REVOKE the SELECT privilege from the group. While logged in as the test user, run the SELECT query again."
+  "parser_code": "function aggregateResults(stepResults) { const revokeStep = stepResults.revoke_select_from_group; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query Failed'; let actual_result = ''; if (!revokeStep || !revokeStep.data || revokeStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (revokeStep && revokeStep.data && revokeStep.data.status && revokeStep.data.status.error) { errorMsg = revokeStep.data.status.error.message || revokeStep.data.status.error; } actual_result = 'Failed to revoke SELECT permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'REVOKE_SELECT_FAILED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; } const data = accessStep.data; if (data && data.status && data.status.state === 'FAILED') { const errorMsg = data.status.error ? data.status.error.message : ''; if (errorMsg && (errorMsg.indexOf('permission') !== -1 || errorMsg.indexOf('Permission') !== -1 || errorMsg.indexOf('PERMISSION') !== -1 || errorMsg.indexOf('access') !== -1 || errorMsg.indexOf('Access') !== -1 || errorMsg.indexOf('ACCESS') !== -1 || errorMsg.indexOf('denied') !== -1 || errorMsg.indexOf('Denied') !== -1 || errorMsg.indexOf('DENIED') !== -1 || errorMsg.indexOf('Forbidden') !== -1 || errorMsg.indexOf('FORBIDDEN') !== -1 || errorMsg.indexOf('forbidden') !== -1)) { actual_result = 'Access denied: ' + errorMsg; return { status: 'pass', message: 'Authorization validation passed: User2 SELECT access properly denied after revoke', code: 'AUTH_ACCESS_ROLE_REVOKE_PASSED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; } actual_result = 'Query failed: ' + errorMsg; } else { actual_result = 'Query did not fail as expected.'; } return { status: 'fail', message: 'Authorization validation failed: User2 SELECT access was not revoked', code: 'AUTH_ACCESS_ROLE_REVOKE_FAILED', test_id: 'OQ-105-6', title: 'Authorization Access (Role) - Revoke', expected_result, actual_result }; }",
+  "manual_procedure": "Revoke SELECT from TEMP_<ORG>_OQ104 for <catalog name>.<schema name>.<table name>. While logged into the user account, In SQL Editor write a select query for <catalog name>.<schema name>.<table name> and run"
 } 

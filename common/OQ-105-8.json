@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT SELECT ON TABLE ${catalog_name}.silver.sdtm_dm TO `${target_user_email}`",
+        "statement": "GRANT SELECT ON TABLE ${catalog_name}.gold.patient_summary TO `${target_user_email}`",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -46,7 +46,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM ${catalog_name}.gold.patient_summary LIMIT 5",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -54,6 +54,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const grantStep = stepResults.grant_select_to_user; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query succeeds.'; let actual_result = ''; if (!userStep || !userStep.data) { actual_result = 'Failed to get current user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!grantStep || !grantStep.data || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } actual_result = 'Failed to grant SELECT permission to user: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User cannot select from ' + variables.catalog_name + '.silver.sdtm_dm after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User can select from ' + variables.catalog_name + '.silver.sdtm_dm after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_PASSED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; }",
-  "manual_procedure": "Grant the SELECT privilege on <table name2> directly to the test user. While logged in as the test user, run the SELECT query against <table name2> again."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const grantStep = stepResults.grant_select_to_user; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query Succeeded'; let actual_result = ''; if (!userStep || !userStep.data) { actual_result = 'Failed to get current user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!grantStep || !grantStep.data || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } actual_result = 'Failed to grant SELECT permission to user: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User cannot select from ' + variables.catalog_name + '.gold.patient_summary after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User can select from ' + variables.catalog_name + '.gold.patient_summary after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_PASSED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; }",
+  "manual_procedure": "Grant SELECT to the user directly for <catalog name>.<schema name>.<table name2>. While logged into the user account, In SQL Editor write a select query for <catalog name>.<schema name>.<table name2> and run"
 } 
