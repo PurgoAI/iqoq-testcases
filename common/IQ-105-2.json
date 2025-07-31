@@ -22,7 +22,7 @@
     },
     {
       "step": 2,
-      "name": "test_write_access_restriction",
+      "name": "test_write_access_restriction_token1",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/workspace/mkdirs",
       "headers": {
@@ -30,12 +30,26 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "path": "/Shared/test_security_folder"
+        "path": "/Shared/test_security_folder_token1"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const statusCode = responseData?.status_code || 200; const writeAccessAllowed = statusCode === 200; return { ...currentVariables, write_access_allowed: writeAccessAllowed, write_test_status_code: statusCode, write_test_response: responseData }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const statusCode = responseData?.status_code || 200; const writeAccessAllowed = statusCode === 200; return { ...currentVariables, write_access_allowed_token1: writeAccessAllowed, write_test_status_code_token1: statusCode, write_test_response_token1: responseData }; }"
+    },
+    {
+      "step": 3,
+      "name": "test_write_access_restriction_token2",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/workspace/mkdirs",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "path": "/Shared/test_security_folder_token2"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const statusCode = responseData?.status_code || 200; const writeAccessAllowed = statusCode === 200; return { ...currentVariables, write_access_allowed_token2: writeAccessAllowed, write_test_status_code_token2: statusCode, write_test_response_token2: responseData }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.check_cluster_security_configs; const writeStep = stepResults.test_write_access_restriction; const expected_result = 'Write Access: Denied unless permitted'; let actual_result = 'Write Access: Not tested'; if (clusterStep.error) { return { status: 'fail', message: 'Failed to check cluster security configurations', code: 'CLUSTER_SECURITY_CHECK_FAILED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } if (writeStep.error) { return { status: 'fail', message: 'Failed to test write access restrictions', code: 'WRITE_ACCESS_TEST_FAILED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } const secureConfigsFound = variables.secure_configs_found || false; const writeAccessAllowed = variables.write_access_allowed || false; const writeTestStatusCode = variables.write_test_status_code || 0; if (writeAccessAllowed) { actual_result = 'Write Access: Allowed (security risk)'; return { status: 'fail', message: 'Write access allowed to shared workspace - potential security risk', code: 'EXCESSIVE_PERMISSIONS', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else if (writeTestStatusCode === 403) { actual_result = 'Write Access: Properly restricted'; return { status: 'pass', message: 'Access control properly configured - write access restricted', code: 'PROPER_ACCESS_CONTROL', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { if (secureConfigsFound) { actual_result = 'Write Access: Secure configurations found'; return { status: 'pass', message: 'Secure storage configurations found', code: 'SECURE_CONFIGURATION', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { actual_result = 'Write Access: No secure configurations'; return { status: 'fail', message: 'No secure storage configurations found', code: 'INSECURE_CONFIGURATION', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } } }",
+  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.check_cluster_security_configs; const writeStep1 = stepResults.test_write_access_restriction_token1; const writeStep2 = stepResults.test_write_access_restriction_token2; const expected_result = 'Write Access: Denied unless permitted'; let actual_result = 'Write Access: Not tested'; if (clusterStep.error) { return { status: 'fail', message: 'Failed to check cluster security configurations', code: 'CLUSTER_SECURITY_CHECK_FAILED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } if (writeStep1.error) { return { status: 'fail', message: 'Failed to test write access restrictions with token1', code: 'WRITE_ACCESS_TEST_FAILED_TOKEN1', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } if (writeStep2.error) { return { status: 'fail', message: 'Failed to test write access restrictions with token2', code: 'WRITE_ACCESS_TEST_FAILED_TOKEN2', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } const secureConfigsFound = variables.secure_configs_found || false; const writeAccessAllowedToken1 = variables.write_access_allowed_token1 || false; const writeAccessAllowedToken2 = variables.write_access_allowed_token2 || false; const writeTestStatusCodeToken1 = variables.write_test_status_code_token1 || 0; const writeTestStatusCodeToken2 = variables.write_test_status_code_token2 || 0; const bothTokensAllowed = writeAccessAllowedToken1 && writeAccessAllowedToken2; const bothTokensDenied = writeTestStatusCodeToken1 === 403 && writeTestStatusCodeToken2 === 403; const mixedResults = (writeAccessAllowedToken1 && writeTestStatusCodeToken2 === 403) || (writeTestStatusCodeToken1 === 403 && writeAccessAllowedToken2); if (bothTokensAllowed) { actual_result = 'Write Access: Both tokens allowed (security risk)'; return { status: 'fail', message: 'Write access allowed to shared workspace for both tokens - potential security risk', code: 'EXCESSIVE_PERMISSIONS_BOTH_TOKENS', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else if (bothTokensDenied) { actual_result = 'Write Access: Both tokens properly restricted'; return { status: 'pass', message: 'Access control properly configured - write access restricted for both tokens', code: 'PROPER_ACCESS_CONTROL_BOTH_TOKENS', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else if (mixedResults) { actual_result = 'Write Access: Mixed results (token1: ' + (writeAccessAllowedToken1 ? 'allowed' : 'denied') + ', token2: ' + (writeAccessAllowedToken2 ? 'allowed' : 'denied') + ')'; return { status: 'pass', message: 'Access control working - different permissions for different tokens', code: 'MIXED_ACCESS_CONTROL', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { if (secureConfigsFound) { actual_result = 'Write Access: Secure configurations found'; return { status: 'pass', message: 'Secure storage configurations found', code: 'SECURE_CONFIGURATION', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { actual_result = 'Write Access: No secure configurations'; return { status: 'fail', message: 'No secure storage configurations found', code: 'INSECURE_CONFIGURATION', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } } }",
   "manual_procedure": "Use dbutils.fs.put with assert to test write access restrictions in Databricks workspace."
 } 
