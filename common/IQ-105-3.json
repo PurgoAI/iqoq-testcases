@@ -1,0 +1,43 @@
+{
+  "title": "Access Logging",
+  "test_description": "Validate that access to storage is being properly logged and audited in Databricks by checking system.access.audit table for tokenLogin actions",
+  "version": "1.0",
+  "test_code": "IQ-105-2",
+  "test_seq": 2,
+  "test_suite": "IQ-105",
+  "test_suite_title": "Data Storage Validation",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_current_user",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { let userEmail = responseData?.emails?.[0]?.value || responseData?.userName || responseData?.email; if (!userEmail) { throw new Error('Could not extract user_email from response'); } logger.debug('Extracted user_email:', userEmail); return { ...currentVariables, user_email: userEmail }; }"
+    },
+    {
+      "step": 2,
+      "name": "query_access_audit",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "warehouse_id": "${warehouse_id}",
+        "statement": "SELECT * FROM system.access.audit WHERE action_name = 'tokenLogin' AND user_identity.email = '${user_email}' LIMIT 1",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const auditRecords = responseData?.result?.data_array || []; const auditCount = auditRecords.length; return { ...currentVariables, audit_records: auditRecords, audit_count: auditCount, has_audit_records: auditCount > 0 }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const getUserStep = stepResults.get_current_user; const queryAuditStep = stepResults.query_access_audit; const expected_result = 'Access Logging: All operations audited.'; let actual_result = 'Access Logging: Not audited'; if (getUserStep.error) { return { status: 'fail', message: 'Failed to get current user information', code: 'USER_INFO_FAILED', test_id: 'IQ-105-2', title: 'Access Logging', expected_result, actual_result }; } if (queryAuditStep.error) { return { status: 'fail', message: 'Failed to query system.access.audit', code: 'AUDIT_QUERY_FAILED', test_id: 'IQ-105-2', title: 'Access Logging', expected_result, actual_result }; } const userEmail = getUserStep.data?.emails?.[0]?.value; const auditData = queryAuditStep.data?.result?.data_array || []; const auditCount = auditData.length; if (!userEmail) { return { status: 'fail', message: 'Could not determine current user email for audit log check', code: 'MISSING_USER_EMAIL', test_id: 'IQ-105-2', title: 'Access Logging', expected_result, actual_result }; } if (queryAuditStep.data?.status?.state !== 'SUCCEEDED') { return { status: 'fail', message: 'SQL query failed to execute successfully', code: 'SQL_QUERY_FAILED', test_id: 'IQ-105-2', title: 'Access Logging', expected_result, actual_result }; } if (auditCount === 0) { actual_result = 'Access Logging: Not audited'; return { status: 'fail', message: 'No audit logs found for current user in system.access.audit', code: 'NO_AUDIT_RECORDS', test_id: 'IQ-105-2', title: 'Access Logging', expected_result, actual_result }; } actual_result = 'Access Logging: Audited'; return { status: 'pass', message: 'Databricks audit logging is properly configured and working', code: 'AUDIT_ENABLED', test_id: 'IQ-105-2', title: 'Access Logging', expected_result, actual_result }; }",
+  "manual_procedure": "Review the workspace audit logs or the underlying cloud provider logs (e.g., AWS CloudTrail, Azure Monitor)."
+} 
