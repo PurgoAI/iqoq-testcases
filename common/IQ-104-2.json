@@ -1,16 +1,16 @@
 {
-  "title": "Auto-scaling",
-  "test_description": "Validate that the Databricks cluster has the required auto-scaling configuration",
-  "version": "1.0",
+  "title": "Worker Nodes",
+  "test_description": "Validate that the Databricks cluster has the required worker nodes configuration",
   "test_code": "IQ-104-2",
   "test_seq": 2,
   "test_suite": "IQ-104",
   "test_suite_title": "Cluster Configuration",
   "category": "IQ",
+  "version": "1.0",
   "api_calls": [
     {
       "step": 1,
-      "name": "get_cluster_autoscale",
+      "name": "get_cluster_info",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/clusters/get",
       "headers": {
@@ -23,6 +23,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.get_cluster_autoscale; const requiredMinWorkers = variables.iq_104_2_min_workers || 8; const requiredMaxWorkers = variables.iq_104_2_max_workers || 32; const expected_result = `Auto-scaling: ${requiredMinWorkers}-${requiredMaxWorkers} nodes`; let actual_result = 'Auto-scaling: Not found'; if (clusterStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-104-2', title: 'Auto-scaling', expected_result, actual_result }; } const apiOutput = clusterStep.data; if (!apiOutput || !apiOutput.autoscale) { return { status: 'fail', message: 'Auto-scaling configuration is missing', code: 'MISSING_AUTOSCALE_INFO', test_id: 'IQ-104-2', title: 'Auto-scaling', expected_result, actual_result }; } const minWorkers = apiOutput.autoscale.min_workers; const maxWorkers = apiOutput.autoscale.max_workers; if (minWorkers === undefined || maxWorkers === undefined) { return { status: 'fail', message: 'Auto-scaling configuration is incomplete', code: 'INCOMPLETE_AUTOSCALE_INFO', test_id: 'IQ-104-2', title: 'Auto-scaling', expected_result, actual_result }; } actual_result = `Auto-scaling: ${minWorkers}-${maxWorkers} nodes`; const minMatches = minWorkers === requiredMinWorkers; const maxMatches = maxWorkers === requiredMaxWorkers; if (minMatches && maxMatches) { return { status: 'pass', message: 'Cluster has the required auto-scaling configuration', code: 'CORRECT_AUTO_SCALING', test_id: 'IQ-104-2', title: 'Auto-scaling', expected_result, actual_result }; } else { return { status: 'fail', message: `Cluster auto-scaling configuration does not meet requirements: Min workers is ${minWorkers} instead of ${requiredMinWorkers}; Max workers is ${maxWorkers} instead of ${requiredMaxWorkers}`, code: 'INCORRECT_AUTO_SCALING', test_id: 'IQ-104-2', title: 'Auto-scaling', expected_result, actual_result }; } }",
-  "manual_procedure": "databricks clusters get --cluster-id <id> | jq '.autoscale.min_workers, .autoscale.max_workers'"
+  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.get_cluster_info; const requiredWorkerCount = variables.iq_104_2_worker_count || 8; const requiredNodeType = variables.iq_104_2_node_type || 'E32ds v5'; const expected_result = `Worker Nodes: ${requiredWorkerCount} x ${requiredNodeType}`; let actual_result = 'Worker Nodes: Not found'; if (clusterStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-104-2', title: 'Worker Nodes', expected_result, actual_result }; } const apiOutput = clusterStep.data; if (!apiOutput || !apiOutput.node_type_id) { return { status: 'fail', message: 'Cluster response is missing node type information', code: 'MISSING_CLUSTER_INFO', test_id: 'IQ-104-2', title: 'Worker Nodes', expected_result, actual_result }; } const actualNodeType = apiOutput.node_type_id; let actualWorkerCount = null; if (apiOutput.num_workers !== undefined) { actualWorkerCount = apiOutput.num_workers; } else if (apiOutput.autoscale && apiOutput.autoscale.min_workers !== undefined) { actualWorkerCount = apiOutput.autoscale.min_workers; } if (actualWorkerCount === null) { return { status: 'fail', message: 'Cluster response is missing worker count information', code: 'MISSING_WORKER_COUNT', test_id: 'IQ-104-2', title: 'Worker Nodes', expected_result, actual_result }; } actual_result = `Worker Nodes: ${actualWorkerCount} x ${actualNodeType}`; const nodeTypeMatches = actualNodeType.toLowerCase().includes(requiredNodeType.toLowerCase()); const workerCountMatches = actualWorkerCount === requiredWorkerCount; if (nodeTypeMatches && workerCountMatches) { return { status: 'pass', message: 'Cluster has the required worker node configuration', code: 'CORRECT_WORKER_CONFIGURATION', test_id: 'IQ-104-2', title: 'Worker Nodes', expected_result, actual_result }; } else { return { status: 'fail', message: `Cluster worker configuration does not meet requirements: Node type is ${actualNodeType}; Worker count is ${actualWorkerCount} instead of ${requiredWorkerCount}`, code: 'INCORRECT_WORKER_CONFIGURATION', test_id: 'IQ-104-2', title: 'Worker Nodes', expected_result, actual_result }; } }",
+  "manual_procedure": "# Worker node check\ndatabricks clusters get --cluster-id <id> | jq '.num_workers, .node_type_id'"
 }
