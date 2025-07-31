@@ -1,43 +1,26 @@
 {
-  "title": "Credential Rotation and Auditing",
-  "test_description": "Validate that an invalid token is denied access and that the failed attempt is logged in the audit trail",
-  "version": "1.2",
-  "test_code": "IQ-102-2",
+  "title": "Runtime Validation",
+  "test_description": "Validate Databricks runtime version to ensure LTS version is used",
+  "version": "1.0",
+  "test_code": "IQ-101-2",
   "test_seq": 2,
-  "test_suite": "IQ-102",
-  "test_suite_title": "Unity Catalog Configuration",
+  "test_suite": "IQ-101",
+  "test_suite_title": "Databricks Workspace Setup",
   "category": "IQ",
   "api_calls": [
     {
       "step": 1,
-      "name": "test_invalid_token",
+      "name": "get_clusters",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/unity-catalog/metastores",
+      "api_url": "${workspace_url}/api/2.1/clusters/list",
       "headers": {
-        "Authorization": "Bearer dapi_invalid_token_12345",
-        "Content-Type": "application/json"
+        "Authorization": "Bearer ${token}"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
-    },
-    {
-      "step": 2,
-      "name": "check_audit_log_for_failure",
-      "method": "POST",
-      "api_url": "${workspace_url}/api/2.0/sql/statements",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "warehouse_id": "${warehouse_id}",
-        "statement": "SELECT request_id FROM system.access.audit WHERE service_name = 'unityCatalog' AND response.status_code = 403 AND event_time > now() - INTERVAL 2 MINUTES ORDER BY event_time DESC LIMIT 1",
-        "wait_timeout": "30s"
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const clusters = responseData && responseData.clusters; return { ...currentVariables, clusters_data: clusters || [], clusters_count: (clusters && clusters.length) || 0 }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const tokenStep = stepResults.test_invalid_token; const auditStep = stepResults.check_audit_log_for_failure; const expected_result = 'Access denied + audit log entry'; let actual_result = 'Access: Unknown, Audit: Not Found'; const accessDenied = tokenStep && (tokenStep.status === 401 || tokenStep.status === 403); const auditLogFound = auditStep && auditStep.data && auditStep.data.result && auditStep.data.result.data_array && auditStep.data.result.data_array.length > 0; if (accessDenied && auditLogFound) { actual_result = `Access Denied (status ${tokenStep.status}) + Audit entry found.`; return { status: 'pass', message: 'Invalid token was correctly rejected and the failure was logged.', code: 'TOKEN_VALIDATION_AND_AUDIT_OK', test_id: 'IQ-102-2', title: 'Credential Rotation and Auditing', expected_result, actual_result }; } else if (accessDenied && !auditLogFound) { actual_result = `Access Denied (status ${tokenStep.status}) but NO audit entry found.`; return { status: 'fail', message: 'Access was denied, but the failed API call was not found in the audit log within the time window.', code: 'MISSING_AUDIT_ENTRY', test_id: 'IQ-102-2', title: 'Credential Rotation and Auditing', expected_result, actual_result }; } else { actual_result = `Access Allowed (status ${tokenStep.status})`; return { status: 'fail', message: 'Security vulnerability: Invalid token was accepted by the API.', code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential Rotation and Auditing', expected_result, actual_result }; } }",
-  "manual_procedure": "Attempt expired token access"
+  "parser_code": "function aggregateResults(stepResults) { const requiredVersion = variables.iq_101_2_dbr_version || '16.4'; const ltsRequired = variables.iq_101_2_lts_required || false; const clusters = variables.clusters_data || []; const expected_result = ltsRequired ? 'DBR ' + requiredVersion + ' LTS' : 'DBR ' + requiredVersion + '.x'; let actual_result = 'No clusters found'; if (clusters.length === 0) { return { status: 'fail', message: 'No clusters found', code: 'NO_CLUSTERS', test_id: 'IQ-101-2', title: 'Runtime Validation', expected_result: expected_result, actual_result: actual_result }; } for (const cluster of clusters) { const sparkVersion = cluster.spark_version || ''; if (sparkVersion && sparkVersion.includes(requiredVersion)) { actual_result = sparkVersion; return { status: 'pass', message: 'DBR ' + requiredVersion + '.x found', code: 'EXACT_MATCH', test_id: 'IQ-101-2', title: 'Runtime Validation', expected_result: expected_result, actual_result: actual_result }; } } if (ltsRequired) { for (const cluster of clusters) { const sparkVersion = cluster.spark_version || ''; if (sparkVersion && sparkVersion.toLowerCase().includes('lts')) { actual_result = sparkVersion; return { status: 'pass', message: 'LTS version found: ' + sparkVersion, code: 'LTS_MATCH', test_id: 'IQ-101-2', title: 'Runtime Validation', expected_result: expected_result, actual_result: actual_result }; } } } actual_result = 'No matching version found'; return { status: 'fail', message: 'Required version ' + requiredVersion + ' not found' + (ltsRequired ? ', no LTS version found' : ''), code: 'VERSION_NOT_FOUND', test_id: 'IQ-101-2', title: 'Runtime Validation', expected_result: expected_result, actual_result: actual_result }; }",
+  "manual_procedure": "Run in notebook: spark.conf.get(\"spark.databricks.clusterUsageTags.sparkVersion\")"
 }
