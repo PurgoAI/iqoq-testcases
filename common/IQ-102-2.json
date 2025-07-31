@@ -43,7 +43,7 @@
       },
       "payload": {
         "warehouse_id": "${warehouse_id}",
-        "statement": "SELECT action_name, user_identity, request_params, event_time FROM system.access.audit WHERE action_name IN ('getMetastores', 'listMetastores') AND event_time >= date_sub(now(), interval 5 minute) ORDER BY event_time DESC LIMIT 10",
+        "statement": "SELECT action_name, user_identity, request_params, event_time FROM system.access.audit WHERE action_name IN ('getMetastores', 'listMetastores') ORDER BY event_time DESC LIMIT 10",
         "wait_timeout": "30s"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const auditRecords = responseData?.result?.data_array || []; const auditCount = auditRecords.length; const failedAccessRecords = auditRecords.filter(record => record[0] && (record[0].includes('getMetastores') || record[0].includes('listMetastores'))); return { ...currentVariables, audit_records: auditRecords, audit_count: auditCount, failed_access_records: failedAccessRecords, failed_access_count: failedAccessRecords.length }; }"
