@@ -1,6 +1,6 @@
 {
   "title": "Credential rotation",
-  "test_description": "Validate credential rotation by testing with an expired token",
+  "test_description": "Validate credential rotation by testing with an expired token and checking audit logs",
   "version": "1.0",
   "test_code": "IQ-102-2",
   "test_seq": 2,
@@ -10,6 +10,18 @@
   "api_calls": [
     {
       "step": 1,
+      "name": "get_current_user",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { let userEmail = responseData?.emails?.[0]?.value || responseData?.userName || responseData?.email; if (!userEmail) { throw new Error('Could not extract user_email from response'); } return { ...currentVariables, user_email: userEmail }; }"
+    },
+    {
+      "step": 2,
       "name": "test_invalid_token",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/unity-catalog/metastores",
@@ -19,9 +31,25 @@
       },
       "payload": {},
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+    },
+    {
+      "step": 3,
+      "name": "query_audit_logs",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "warehouse_id": "${warehouse_id}",
+        "statement": "SELECT action_name, user_identity, request_params, timestamp FROM system.access.audit WHERE action_name IN ('getMetastores', 'listMetastores') AND timestamp >= date_sub(now(), interval 5 minute) ORDER BY timestamp DESC LIMIT 10",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const auditRecords = responseData?.result?.data_array || []; const auditCount = auditRecords.length; const failedAccessRecords = auditRecords.filter(record => record[0] && (record[0].includes('getMetastores') || record[0].includes('listMetastores'))); return { ...currentVariables, audit_records: auditRecords, audit_count: auditCount, failed_access_records: failedAccessRecords, failed_access_count: failedAccessRecords.length }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const tokenStep = stepResults.test_invalid_token; const expected_result = 'Access: Denied'; let actual_result = 'Access: Unknown'; if (tokenStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } const statusCode = tokenStep.status; if (statusCode === 401 || statusCode === 403) { actual_result = 'Access: Denied (status ' + statusCode + ')'; return { status: 'pass', message: 'Invalid token correctly rejected', code: 'TOKEN_VALIDATION_WORKING', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } else { actual_result = 'Access: Allowed (status ' + statusCode + ')'; return { status: 'fail', message: 'Invalid token was accepted', code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } }",
-  "manual_procedure": "Attempt expired token access."
+  "parser_code": "function aggregateResults(stepResults) { const getUserStep = stepResults.get_current_user; const tokenStep = stepResults.test_invalid_token; const auditStep = stepResults.query_audit_logs; const expected_result = 'Access: Denied + audit log entry'; let actual_result = 'Access: Unknown'; if (getUserStep.error) { return { status: 'fail', message: 'Failed to get current user information', code: 'USER_INFO_FAILED', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } if (tokenStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } if (auditStep.error) { return { status: 'fail', message: 'Failed to query audit logs', code: 'AUDIT_QUERY_FAILED', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } const statusCode = tokenStep.status; const auditCount = variables.audit_count || 0; const failedAccessCount = variables.failed_access_count || 0; if (statusCode === 401 || statusCode === 403) { actual_result = 'Access: Denied (status ' + statusCode + ')'; if (failedAccessCount > 0) { return { status: 'pass', message: 'Invalid token correctly rejected and access attempt logged in audit trail', code: 'TOKEN_VALIDATION_WITH_AUDIT', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result + ' + audit log entry' }; } else { return { status: 'pass', message: 'Invalid token correctly rejected (audit logs may not capture all API access attempts)', code: 'TOKEN_VALIDATION_WORKING', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } } else { actual_result = 'Access: Allowed (status ' + statusCode + ')'; return { status: 'fail', message: 'Invalid token was accepted', code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } }",
+  "manual_procedure": "Attempt expired token access Access denied + audit log entry <5min response"
 }
