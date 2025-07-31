@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "path": "/Shared/test_security_folder"
+        "path": "/Shared/test_security_folder_IQ105"
       },
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     }
