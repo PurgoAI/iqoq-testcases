@@ -31,13 +31,29 @@
       },
       "payload": {
         "warehouse_id": "${warehouse_id}",
-        "statement": "SELECT * FROM system.access.audit WHERE action_name = 'tokenAuth' AND response.status_code IN (401, 403) AND event_time > now() - INTERVAL 5 MINUTES ORDER BY event_time DESC LIMIT 1",
+        "statement": "SELECT action_name, response.status_code, response.error_message, event_time FROM system.access.audit WHERE response.status_code IN (401, 403) AND event_time > now() - INTERVAL 5 MINUTES ORDER BY event_time DESC LIMIT 5",
         "wait_timeout": "30s"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const auditRecords = responseData?.result?.data_array || []; const auditCount = auditRecords.length; return { ...currentVariables, audit_records: auditRecords, audit_count: auditCount, has_audit_records: auditCount > 0 }; }"
+    },
+    {
+      "step": 3,
+      "name": "check_recent_audit_entries",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "warehouse_id": "${warehouse_id}",
+        "statement": "SELECT action_name, response.status_code, event_time FROM system.access.audit WHERE event_time > now() - INTERVAL 5 MINUTES ORDER BY event_time DESC LIMIT 10",
+        "wait_timeout": "30s"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const recentAuditRecords = responseData?.result?.data_array || []; return { ...currentVariables, recent_audit_records: recentAuditRecords }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const tokenStep = stepResults.test_invalid_token; const auditStep = stepResults.check_audit_log_for_failure; const expected_result = 'Access denied + audit log entry'; let actual_result = 'Access: Unknown, Audit: Not Found'; if (tokenStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } const accessDenied = tokenStep && (tokenStep.status === 401 || tokenStep.status === 403); const auditLogFound = auditStep && auditStep.data && auditStep.data.result && auditStep.data.result.data_array && auditStep.data.result.data_array.length > 0; if (accessDenied && auditLogFound) { actual_result = `Access Denied (status ${tokenStep.status}) + Audit entry found.`; return { status: 'pass', message: 'Invalid token was correctly rejected and the failure was logged.', code: 'TOKEN_VALIDATION_AND_AUDIT_OK', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } else if (accessDenied && !auditLogFound) { actual_result = `Access Denied (status ${tokenStep.status}) but NO audit entry found.`; return { status: 'fail', message: 'Access was denied, but the failed attempt was not found in the audit log.', code: 'MISSING_AUDIT_ENTRY', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } else { actual_result = `Access Allowed (status ${tokenStep.status})`; return { status: 'fail', message: 'Security vulnerability: Invalid token was accepted by the API.', code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } }",
+  "parser_code": "function aggregateResults(stepResults) { const tokenStep = stepResults.test_invalid_token; const auditStep = stepResults.check_audit_log_for_failure; const recentAuditStep = stepResults.check_recent_audit_entries; const expected_result = 'Access denied + audit log entry'; let actual_result = 'Access: Unknown, Audit: Not Found'; if (tokenStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } const accessDenied = tokenStep && (tokenStep.status === 401 || tokenStep.status === 403); const auditLogFound = auditStep && auditStep.data && auditStep.data.result && auditStep.data.result.data_array && auditStep.data.result.data_array.length > 0; if (accessDenied && auditLogFound) { actual_result = `Access Denied (status ${tokenStep.status}) + Audit entry found.`; return { status: 'pass', message: 'Invalid token was correctly rejected and the failure was logged.', code: 'TOKEN_VALIDATION_AND_AUDIT_OK', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } else if (accessDenied && !auditLogFound) { let debugInfo = ''; if (recentAuditStep && recentAuditStep.data && recentAuditStep.data.result && recentAuditStep.data.result.data_array) { const recentRecords = recentAuditStep.data.result.data_array; debugInfo = ` Recent audit entries (${recentRecords.length}): ` + recentRecords.map(record => `${record[0] || 'N/A'} (${record[1] || 'N/A'})`).join(', '); } actual_result = `Access Denied (status ${tokenStep.status}) but NO audit entry found.${debugInfo}`; return { status: 'fail', message: 'Access was denied, but the failed attempt was not found in the audit log.' + debugInfo, code: 'MISSING_AUDIT_ENTRY', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } else { actual_result = `Access Allowed (status ${tokenStep.status})`; return { status: 'fail', message: 'Security vulnerability: Invalid token was accepted by the API.', code: 'TOKEN_VALIDATION_FAILURE', test_id: 'IQ-102-2', title: 'Credential rotation', expected_result, actual_result }; } }",
   "manual_procedure": "Attempt expired token access"
 }
