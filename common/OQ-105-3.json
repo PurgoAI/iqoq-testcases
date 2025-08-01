@@ -38,7 +38,7 @@
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { await delay(180000); logger.debug('Waited 8s after granting schema permissions'); return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(50000); logger.debug('Waited 8s after granting schema permissions'); return currentVariables; }"
     },
     {
       "step": 3,
