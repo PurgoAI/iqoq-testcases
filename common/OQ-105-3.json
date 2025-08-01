@@ -72,7 +72,7 @@
       "payload": {
         "statement": "GRANT USE CATALOG, BROWSE ON CATALOG ${catalog_name} TO `TEMP_GROUP_OQ104`",
         "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "60s"
+        "wait_timeout": "30s"
       },
       "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after granting catalog permissions'); return currentVariables; }"
     },
@@ -88,7 +88,7 @@
       "payload": {
         "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO `TEMP_GROUP_OQ104`",
         "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "60s"
+        "wait_timeout": "30s"
       },
       "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after granting schema permissions'); return currentVariables; }"
     },
