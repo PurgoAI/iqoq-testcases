@@ -1,6 +1,6 @@
 {
   "title": "Write Access",
-  "test_description": "Validate that write access is properly controlled and denied unless explicitly permitted",
+  "test_description": "Validate that write operations are denied for users with insufficient permissions by attempting to insert data into a protected table",
   "version": "1.0",
   "test_code": "IQ-105-2",
   "test_seq": 2,
@@ -22,18 +22,22 @@
     },
     {
       "step": 2,
-      "name": "test_write_access_restriction",
-      "method": "PUT",
-      "api_url": "${workspace_url}/api/2.0/fs/files/Volumes/${catalog_name}/silver/test_volume/security_test_file.txt",
+      "name": "attempt_write_operation",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
       "headers": {
         "Authorization": "Bearer ${token2}",
-        "Content-Type": "application/octet-stream"
+        "Content-Type": "application/json"
       },
-      "payload": "This is a test file for write access validation",
+      "payload": {
+        "warehouse_id": "${warehouse_id}",
+        "statement": "INSERT INTO ${catalog_name}.silver.sdtm_dm (patient_id, test_column) VALUES ('TEST_PATIENT_IQ105', 'test_value');",
+        "wait_timeout": "30s"
+      },
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.check_cluster_security_configs; const writeStep = stepResults.test_write_access_restriction; const expected_result = 'Write Access: Denied unless permitted'; let actual_result = 'Write Access: Not tested'; if (clusterStep.error) { return { status: 'fail', message: 'Failed to check cluster security configurations', code: 'CLUSTER_SECURITY_CHECK_FAILED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } if (writeStep.error) { return { status: 'fail', message: 'Failed to test write access restrictions', code: 'WRITE_ACCESS_TEST_FAILED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } const secureConfigsFound = variables.secure_configs_found || false; const writeStepStatusCode = writeStep.status || 200; const writeAccessAllowed = writeStepStatusCode === 204; if (writeStepStatusCode === 401 || writeStepStatusCode === 403) { actual_result = 'Write Access: Properly restricted'; return { status: 'pass', message: 'Access control properly configured - write access restricted', code: 'PROPER_ACCESS_CONTROL', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else if (writeAccessAllowed) { actual_result = 'Write Access: Allowed (security risk)'; return { status: 'fail', message: 'Write access allowed to volume - potential security risk', code: 'EXCESSIVE_PERMISSIONS', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { if (secureConfigsFound) { actual_result = 'Write Access: Secure configurations found'; return { status: 'pass', message: 'Secure storage configurations found', code: 'SECURE_CONFIGURATION', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { actual_result = 'Write Access: No secure configurations'; return { status: 'fail', message: 'No secure storage configurations found', code: 'INSECURE_CONFIGURATION', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } } }",
-  "manual_procedure": "Test write access to Unity Catalog volumes using Files API to validate proper access controls."
+  "parser_code": "function aggregateResults(stepResults) { const clusterStep = stepResults.check_cluster_security_configs; const writeStep = stepResults.attempt_write_operation; const expected_result = 'Write Access: Denied unless permitted'; let actual_result = 'Write Access: Not tested'; if (clusterStep.error) { return { status: 'fail', message: 'Failed to check cluster security configurations', code: 'CLUSTER_SECURITY_CHECK_FAILED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } if (writeStep.error) { if (writeStep.status === 403) { actual_result = 'Write Access: Denied (API Forbidden)'; return { status: 'pass', message: 'API call was correctly forbidden for the user', code: 'API_FORBIDDEN', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { return { status: 'fail', message: `API call failed unexpectedly with status ${writeStep.status}`, code: 'UNEXPECTED_API_ERROR', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result: 'API Error' }; } } const statementStatus = writeStep.data?.status?.state; const errorMessage = writeStep.data?.status?.error?.message || ''; const hasPermissionError = errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('privilege') || errorMessage.toLowerCase().includes('access') || errorMessage.toLowerCase().includes('denied') || errorMessage.toLowerCase().includes('forbidden') || errorMessage.toLowerCase().includes('insufficient'); if (statementStatus === 'FAILED' && hasPermissionError) { actual_result = 'Write Access: Denied (SQL Permission Error)'; return { status: 'pass', message: 'SQL write operation was correctly denied due to insufficient privileges', code: 'SQL_PERMISSION_DENIED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } if (statementStatus === 'SUCCEEDED') { actual_result = 'Write Access: Allowed (security risk)'; return { status: 'fail', message: 'Unauthorized write operation succeeded, indicating a security gap', code: 'WRITE_ACCESS_GRANTED', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } else { actual_result = 'Write Access: Unknown'; return { status: 'fail', message: `Write attempt failed for an unexpected reason: ${errorMessage}`, code: 'UNKNOWN_FAILURE', test_id: 'IQ-105-2', title: 'Write Access', expected_result, actual_result }; } }",
+  "manual_procedure": "Test write access by attempting to insert data into a protected table and verifying the operation is denied for users with insufficient permissions."
 } 
