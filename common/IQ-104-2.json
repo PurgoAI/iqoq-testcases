@@ -2,7 +2,7 @@
   "title": "Worker Nodes",
   "test_description": "Validate that the Databricks cluster has the required worker nodes configuration",
   "test_code": "IQ-104-1",
-  "test_seq": 1,
+  "test_seq": 2,
   "test_suite": "IQ-104",
   "test_suite_title": "Cluster Configuration",
   "category": "IQ",

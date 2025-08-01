@@ -1,0 +1,141 @@
+{
+  "title": "Cluster State RUNNING within 5min",
+  "test_description": "Cluster State RUNNING within 5min: Start a cluster if not running, wait for it to reach RUNNING state within 5 minutes, then stop it.",
+  "version": "1.0",
+  "test_code": "IQ-104-1",
+  "test_seq": 1,
+  "test_suite": "IQ-104",
+  "test_suite_title": "Cluster Management",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "get_cluster_status",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const state = responseData.state; return { ...currentVariables, cluster_state: state }; }"
+    },
+    {
+      "step": 2,
+      "name": "start_cluster",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/clusters/start",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { if (currentVariables.cluster_state === 'RUNNING') { logger.debug('Cluster already running, skipping start'); return currentVariables; } await delay(30000); logger.debug('Waited 30s after starting cluster'); return currentVariables; }"
+    },
+    {
+      "step": 3,
+      "name": "wait_for_running",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+    },
+    {
+      "step": 4,
+      "name": "wait_for_running_retry1",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+    },
+    {
+      "step": 5,
+      "name": "wait_for_running_retry2",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+    },
+    {
+      "step": 6,
+      "name": "wait_for_running_retry3",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+    },
+    {
+      "step": 7,
+      "name": "wait_for_running_retry4",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+    },
+    {
+      "step": 8,
+      "name": "wait_for_running_retry5",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/clusters/get",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+    },
+    {
+      "step": 9,
+      "name": "stop_cluster",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/clusters/delete",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "cluster_id": "${cluster_id}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(10000); logger.debug('Waited 10s after stopping cluster'); return currentVariables; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const getStatusStep = stepResults.get_cluster_status; const startStep = stepResults.start_cluster; const waitSteps = [stepResults.wait_for_running, stepResults.wait_for_running_retry1, stepResults.wait_for_running_retry2, stepResults.wait_for_running_retry3, stepResults.wait_for_running_retry4, stepResults.wait_for_running_retry5]; const stopStep = stepResults.stop_cluster; const expected_result = 'Result: Cluster reached RUNNING state within 5 minutes'; let actual_result = ''; let clusterRunning = false; let finalState = 'UNKNOWN'; if (!getStatusStep || getStatusStep.status !== 200) { actual_result = 'Failed to get initial cluster status'; return { status: 'fail', message: actual_result, code: 'GET_STATUS_FAILED', test_id: 'IQ-104-1', title: 'Cluster State RUNNING within 5min', expected_result, actual_result }; } const initialState = getStatusStep.data.state; actual_result = 'Initial cluster state: ' + initialState; if (initialState === 'RUNNING') { clusterRunning = true; finalState = 'RUNNING'; actual_result += ' | Cluster already running'; } else if (initialState === 'TERMINATED' || initialState === 'TERMINATING') { if (!startStep || startStep.status !== 200) { actual_result += ' | Failed to start cluster'; return { status: 'fail', message: actual_result, code: 'START_CLUSTER_FAILED', test_id: 'IQ-104-1', title: 'Cluster State RUNNING within 5min', expected_result, actual_result }; } actual_result += ' | Cluster start initiated'; } else { actual_result += ' | Cluster in intermediate state: ' + initialState; } for (let i = 0; i < waitSteps.length; i++) { const waitStep = waitSteps[i]; if (waitStep && waitStep.status === 200) { const state = waitStep.data.state; finalState = state; if (state === 'RUNNING') { clusterRunning = true; actual_result += ' | Cluster reached RUNNING state after ' + (i + 1) + ' checks'; break; } else if (state === 'TERMINATED' || state === 'TERMINATING') { actual_result += ' | Cluster terminated during startup'; break; } else { actual_result += ' | Cluster state: ' + state; } } } if (!clusterRunning) { actual_result += ' | Cluster did not reach RUNNING state within 5 minutes'; return { status: 'fail', message: actual_result, code: 'CLUSTER_NOT_RUNNING', test_id: 'IQ-104-1', title: 'Cluster State RUNNING within 5min', expected_result, actual_result }; } if (!stopStep || stopStep.status !== 200) { actual_result += ' | Failed to stop cluster'; return { status: 'fail', message: actual_result, code: 'STOP_CLUSTER_FAILED', test_id: 'IQ-104-1', title: 'Cluster State RUNNING within 5min', expected_result, actual_result }; } actual_result += ' | Cluster stopped successfully'; return { status: 'pass', message: 'Cluster reached RUNNING state within 5 minutes and was stopped successfully', code: 'CLUSTER_RUNNING_SUCCESS', test_id: 'IQ-104-1', title: 'Cluster State RUNNING within 5min', expected_result, actual_result }; }",
+  "manual_procedure": "Check cluster status, start if not running, wait for RUNNING state (max 5 minutes), then stop the cluster."
+} 

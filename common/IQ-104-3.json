@@ -3,7 +3,7 @@
   "test_description": "Validate that the Databricks cluster has the required auto-scaling configuration",
   "version": "1.0",
   "test_code": "IQ-104-2",
-  "test_seq": 2,
+  "test_seq": 3,
   "test_suite": "IQ-104",
   "test_suite_title": "Cluster Configuration",
   "category": "IQ",

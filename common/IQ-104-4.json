@@ -2,7 +2,7 @@
   "title": "Delta Lake",
   "test_description": "Validate that the Databricks cluster has the required Delta Lake version",
   "test_code": "IQ-104-3",
-  "test_seq": 3,
+  "test_seq": 4,
   "test_suite": "IQ-104",
   "test_suite_title": "Cluster Configuration",
   "category": "IQ",
