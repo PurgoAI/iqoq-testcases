@@ -1,6 +1,6 @@
 {
-  "title": "Git Credential Creation",
-  "test_description": "Create Git credentials and validate successful creation",
+  "title": "Repository Sync",
+  "test_description": "Validate that repository sync works within 5 minutes by checking commit hash changes after triggering a sync",
   "version": "1.0",
   "test_code": "IQ-108-1",
   "test_seq": 1,
@@ -10,35 +10,44 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "check_existing_credentials",
+      "name": "get_initial_repo_state",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const existingCredentials = responseData?.credentials || []; let credentialExists = false; let existingCredentialId = null; const gitProvider = currentVariables.git_provider || 'gitHub'; const gitUsername = currentVariables.git_username; for (let i = 0; i < existingCredentials.length; i++) { const cred = existingCredentials[i]; if (cred && cred.git_provider && cred.git_provider.toLowerCase() === gitProvider.toLowerCase() && cred.git_username === gitUsername) { credentialExists = true; existingCredentialId = cred.credential_id; break; } } if (!existingCredentialId && existingCredentials.length > 0) { existingCredentialId = existingCredentials[0].credential_id; } logger.debug('Credential check:', { credentialExists, existingCredentialId, credentialsCount: existingCredentials.length }); return { ...currentVariables, credential_exists: credentialExists, existing_credential_id: existingCredentialId, credentials_count: existingCredentials.length }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const initialCommitId = responseData?.head_commit_id || null; const repoPath = responseData?.path || null; const repoUrl = responseData?.url || null; logger.debug('Initial repo state:', { initialCommitId, repoPath, repoUrl }); return { ...currentVariables, initial_commit_id: initialCommitId, repo_path: repoPath, repo_url: repoUrl }; }"
     },
     {
       "step": 2,
-      "name": "create_git_credentials",
-      "condition": "!credential_exists",
-      "method": "POST",
-      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "name": "trigger_repo_sync",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
       "payload": {
-        "git_provider": "${git_provider}",
-        "git_username": "${git_username}",
-        "personal_access_token": "${personal_access_token}"
+        "branch": "main"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const credentialId = responseData?.credential_id || null; const success = responseData && !responseData.error_code; logger.debug('Credential creation:', { success, credentialId }); return { ...currentVariables, credential_created: success, new_credential_id: credentialId, creation_result: responseData }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const syncStartTime = Date.now(); logger.debug('Sync triggered at:', syncStartTime); await delay(10000); logger.debug('Waited 10s after triggering sync'); return { ...currentVariables, sync_start_time: syncStartTime }; }"
+    },
+    {
+      "step": 3,
+      "name": "poll_for_commit_change",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "async function processStep(responseData, currentVariables) { const currentCommitId = responseData?.head_commit_id || null; const currentTime = Date.now(); const syncStartTime = currentVariables.sync_start_time || currentTime; const elapsedTime = currentTime - syncStartTime; const maxWaitTime = 5 * 60 * 1000; // 5 minutes in milliseconds const hasChanged = currentCommitId && currentCommitId !== currentVariables.initial_commit_id; const isTimeout = elapsedTime > maxWaitTime; logger.debug('Poll result:', { currentCommitId, initialCommitId: currentVariables.initial_commit_id, hasChanged, elapsedTime, isTimeout }); if (!hasChanged && !isTimeout) { await delay(30000); logger.debug('Waited 30s before next poll'); } return { ...currentVariables, current_commit_id: currentCommitId, elapsed_time_ms: elapsedTime, commit_changed: hasChanged, sync_timeout: isTimeout }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { var credStep = stepResults.check_existing_credentials; var expected_result = 'File Sync Time: <=5 min.'; var actual_result = 'No Git credential found'; if (!credStep || credStep.error) { return { status: 'fail', message: 'Failed to get Git credentials', code: 'GIT_CREDENTIALS_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result: expected_result, actual_result: actual_result }; } var credentials = (credStep.data && credStep.data.credentials) ? credStep.data.credentials : []; if (credentials.length > 0) { var provider = credentials[0].git_provider || ''; var user = credentials[0].user_name || credentials[0].git_username || ''; actual_result = 'Git credential found for ' + provider + '/' + user; return { status: 'pass', message: 'Git credential found and listed', code: 'GIT_CREDENTIAL_FOUND', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result: expected_result, actual_result: actual_result }; } else { return { status: 'fail', message: 'No Git credential found', code: 'NO_GIT_CREDENTIAL', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result: expected_result, actual_result: actual_result }; } }",
-  "manual_procedure": "Create a test file in the linked Git repository.\nRun the repository synchronization job in Databricks."
+  "parser_code": "function aggregateResults(stepResults) { const initialStep = stepResults.get_initial_repo_state; const syncStep = stepResults.trigger_repo_sync; const pollStep = stepResults.poll_for_commit_change; const expected_result = 'File Sync Time: <=5 min.'; let actual_result = 'Repository sync not tested'; if (initialStep.error) { return { status: 'fail', message: 'Failed to get initial repository state', code: 'INITIAL_STATE_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (syncStep.error) { return { status: 'fail', message: 'Failed to trigger repository sync', code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (pollStep.error) { return { status: 'fail', message: 'Failed to poll for repository changes', code: 'POLL_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } const initialCommitId = variables.initial_commit_id; const currentCommitId = variables.current_commit_id; const elapsedTime = variables.elapsed_time_ms || 0; const commitChanged = variables.commit_changed || false; const syncTimeout = variables.sync_timeout || false; const elapsedMinutes = (elapsedTime / 1000 / 60).toFixed(2); if (commitChanged && !syncTimeout) { actual_result = `File Sync Time: ${elapsedMinutes} min.`; return { status: 'pass', message: `Repository sync completed successfully in ${elapsedMinutes} minutes`, code: 'SYNC_SUCCESS', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (syncTimeout) { actual_result = `File Sync Time: >5 min. (${elapsedMinutes} min.)`; return { status: 'fail', message: `Repository sync timed out after ${elapsedMinutes} minutes`, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (!initialCommitId) { actual_result = 'No initial commit ID found'; return { status: 'fail', message: 'No initial commit ID found in repository', code: 'NO_INITIAL_COMMIT', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else { actual_result = 'Commit ID unchanged'; return { status: 'fail', message: 'Repository commit ID did not change after sync', code: 'NO_COMMIT_CHANGE', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } }",
+  "manual_procedure": "Create a test file in Git repository and run sync job in Databricks to verify changes appear within 5 minutes."
 } 

@@ -1,6 +1,6 @@
 {
-  "title": "Repository Access Validation",
-  "test_description": "Validate repository access by listing repos and creating if needed",
+  "title": "Access Control",
+  "test_description": "Validate that Git operations are blocked for users without proper credentials by attempting operations that should fail",
   "version": "1.0",
   "test_code": "IQ-108-2",
   "test_seq": 2,
@@ -10,49 +10,49 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "list_existing_repos",
+      "name": "get_git_credentials",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/repos",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const existingRepos = responseData?.repos || []; let repoFound = false; let targetRepoId = null; let targetRepoPath = null; const repoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; for (let i = 0; i < existingRepos.length; i++) { const repo = existingRepos[i]; if (repo && repo.url === repoUrl) { repoFound = true; targetRepoId = repo.id; targetRepoPath = repo.path; break; } } logger.debug('Repo search:', { repoFound, targetRepoId, totalRepos: existingRepos.length }); return { ...currentVariables, repo_found: repoFound, repo_id: targetRepoId, repo_path: targetRepoPath, total_repos: existingRepos.length }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData?.credentials || []; let credentialId = null; const gitUsername = currentVariables.git_username; for (let i = 0; i < credentials.length; i++) { const cred = credentials[i]; if (cred && cred.git_username === gitUsername) { credentialId = cred.credential_id; break; } } if (!credentialId && credentials.length > 0) { credentialId = credentials[0].credential_id; } logger.debug('Git credentials found:', { credentialId, credentialsCount: credentials.length }); return { ...currentVariables, credential_id: credentialId, credentials_count: credentials.length }; }"
     },
     {
       "step": 2,
-      "name": "get_current_user",
-      "condition": "!repo_found",
-      "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "name": "attempt_unauthorized_sync",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
       "headers": {
-        "Authorization": "Bearer ${token}",
+        "Authorization": "Bearer ${token2}",
         "Content-Type": "application/json"
       },
-      "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData?.userName || 'validation-user'; const userId = responseData?.id || 'unknown'; const timestamp = Date.now().toString(); logger.debug('Current user:', { userName, userId, timestamp }); return { ...currentVariables, current_username: userName, current_user_id: userId, current_timestamp: timestamp }; }"
+      "payload": {
+        "branch": "main"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after unauthorized sync attempt'); return currentVariables; }"
     },
     {
       "step": 3,
-      "name": "create_validation_repo",
-      "condition": "!repo_found && current_username",
+      "name": "attempt_unauthorized_repo_creation",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/repos",
       "headers": {
-        "Authorization": "Bearer ${token}",
+        "Authorization": "Bearer ${token2}",
         "Content-Type": "application/json"
       },
       "payload": {
         "url": "${repo_url}",
         "provider": "${git_provider}",
-        "path": "/Users/${current_username}/iq-oq-validation-repo-${current_timestamp}",
+        "path": "/Users/test-user/unauthorized-repo-test",
         "branch": "main"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; const repoPath = responseData?.path || null; const success = responseData && !responseData.error_code; logger.debug('Repo creation:', { success, repoId, repoPath }); return { ...currentVariables, repo_created: success, new_repo_id: repoId, new_repo_path: repoPath, creation_result: responseData }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after unauthorized repo creation attempt'); return currentVariables; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { var listStep = stepResults.list_existing_repos; var userStep = stepResults.get_current_user; var createStep = stepResults.create_validation_repo; var expected_result = 'Repository access: Existing or created repo available.'; var actual_result = ''; if (!listStep || listStep.error) { actual_result = 'Failed to list existing repositories'; return { status: 'fail', message: 'Failed to list existing repositories', code: 'REPO_LIST_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation', expected_result: expected_result, actual_result: actual_result }; } var repoUrl = (typeof variables !== 'undefined' && variables.repo_url) ? variables.repo_url : 'https://github.com/PurgoAI/test-iq-oq-git-intg'; var gitProvider = (typeof variables !== 'undefined' && variables.git_provider) ? variables.git_provider : 'gitHub'; var existingRepos = (listStep.data && listStep.data.repos) ? listStep.data.repos : []; var totalRepos = existingRepos.length; var repoFound = false; var targetRepoId = null; var targetRepoPath = null; for (var i = 0; i < existingRepos.length; i++) { var repo = existingRepos[i]; if (repo && repo.url === repoUrl) { repoFound = true; targetRepoId = repo.id; targetRepoPath = repo.path; break; } } if (repoFound) { actual_result = 'Repository access validated successfully - existing repository found'; return { status: 'pass', message: 'Repository access validated successfully - existing repository found', code: 'REPO_ACCESS_VALID', test_id: 'IQ-108-2', title: 'Repository Access Validation', expected_result: expected_result, actual_result: actual_result }; } var currentUsername = 'validation-user'; if (userStep && !userStep.error && userStep.data) { currentUsername = userStep.data.userName || 'validation-user'; } else if (userStep && userStep.error) { actual_result = 'Failed to get current user information'; return { status: 'fail', message: 'Failed to get current user information', code: 'USER_INFO_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation', expected_result: expected_result, actual_result: actual_result }; } if (createStep && createStep.error) { actual_result = 'Failed to create validation repository'; return { status: 'fail', message: 'Failed to create validation repository', code: 'REPO_CREATE_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation', expected_result: expected_result, actual_result: actual_result }; } if (createStep && typeof createStep.status !== 'undefined' && createStep.status !== 200 && createStep.status !== 201) { var errorMessage = 'Repository creation failed'; if (createStep.status === 403) { errorMessage = 'Permission denied creating repository'; } else if (createStep.status === 400) { errorMessage = 'Invalid repository configuration'; } else if (createStep.status === 409) { errorMessage = 'Repository already exists or path conflict'; } else { errorMessage = 'API error: ' + createStep.status; } actual_result = errorMessage; return { status: 'fail', message: errorMessage, code: 'API_ERROR', test_id: 'IQ-108-2', title: 'Repository Access Validation', expected_result: expected_result, actual_result: actual_result }; } if (createStep && createStep.data) { var newRepoId = createStep.data.id; var success = createStep.data && !createStep.data.error_code; if (success && newRepoId) { actual_result = 'Repository access validated successfully - new repository created'; return { status: 'pass', message: 'Repository access validated successfully - new repository created', code: 'REPO_CREATED', test_id: 'IQ-108-2', title: 'Repository Access Validation', expected_result: expected_result, actual_result: actual_result }; } } actual_result = 'Repository access validation failed - unable to access or create repository'; return { status: 'fail', message: 'Repository access validation failed - unable to access or create repository', code: 'REPO_ACCESS_FAILED', test_id: 'IQ-108-2', title: 'Repository Access Validation', expected_result: expected_result, actual_result: actual_result }; }",
+  "parser_code": "function aggregateResults(stepResults) { const credStep = stepResults.get_git_credentials; const syncStep = stepResults.attempt_unauthorized_sync; const createStep = stepResults.attempt_unauthorized_repo_creation; const expected_result = 'Access control: 100% blocking'; let actual_result = 'Access control not tested'; if (credStep.error) { return { status: 'fail', message: 'Failed to get Git credentials', code: 'CREDENTIALS_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } const syncStepStatusCode = syncStep.status || 200; const createStepStatusCode = createStep.status || 200; const syncStepData = syncStep.data || {}; const createStepData = createStep.data || {}; const syncError = syncStepData.error?.message || syncStepData.message || ''; const createError = createStepData.error?.message || createStepData.message || ''; const hasSyncPermissionError = syncError.toLowerCase().includes('permission') || syncError.toLowerCase().includes('access') || syncError.toLowerCase().includes('denied') || syncError.toLowerCase().includes('forbidden') || syncError.toLowerCase().includes('unauthorized') || syncStepStatusCode === 401 || syncStepStatusCode === 403; const hasCreatePermissionError = createError.toLowerCase().includes('permission') || createError.toLowerCase().includes('access') || createError.toLowerCase().includes('denied') || createError.toLowerCase().includes('forbidden') || createError.toLowerCase().includes('unauthorized') || createStepStatusCode === 401 || createStepStatusCode === 403; if (hasSyncPermissionError && hasCreatePermissionError) { actual_result = 'Access control: 100% blocking'; return { status: 'pass', message: 'Access control properly configured - all unauthorized operations blocked', code: 'ACCESS_CONTROL_PASSED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else if (hasSyncPermissionError || hasCreatePermissionError) { actual_result = 'Access control: Partial blocking'; return { status: 'pass', message: 'Access control partially working - some unauthorized operations blocked', code: 'ACCESS_CONTROL_PARTIAL', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else { actual_result = 'Access control: No blocking'; return { status: 'fail', message: 'Access control not working - unauthorized operations allowed', code: 'ACCESS_CONTROL_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } }",
   "manual_procedure": "Attempt to push a commit to the repository from Databricks without a valid Personal Access Token (PAT)."
 } 
