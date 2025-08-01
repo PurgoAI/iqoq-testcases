@@ -1,6 +1,6 @@
 {
   "title": "Repository Sync",
-  "test_description": "Validate that repository sync works within 5 minutes by checking commit hash changes after triggering a sync",
+  "test_description": "Validate that repository sync works within 5 minutes by checking commit changes in a newly created Git repository",
   "version": "1.0",
   "test_code": "IQ-108-1",
   "test_seq": 1,
@@ -10,18 +10,35 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "get_repo_info",
+      "name": "get_current_user",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/repos",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData?.repos || []; let targetRepoId = null; let initialCommitId = null; const repoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; for (let i = 0; i < repos.length; i++) { const repo = repos[i]; if (repo && repo.url === repoUrl) { targetRepoId = repo.id; initialCommitId = repo.head_commit_id; break; } } logger.debug('Repo info:', { targetRepoId, initialCommitId, repoUrl, totalRepos: repos.length }); return { ...currentVariables, repo_id: targetRepoId, initial_commit_id: initialCommitId, repo_url: repoUrl }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData?.userName || 'validation-user'; const userId = responseData?.id || 'unknown'; const timestamp = Date.now().toString(); logger.debug('Current user:', { userName, userId, timestamp }); return { ...currentVariables, current_username: userName, current_user_id: userId, current_timestamp: timestamp }; }"
     },
     {
       "step": 2,
+      "name": "create_new_repo",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/repos",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "url": "${repo_url}",
+        "provider": "${git_provider}",
+        "path": "/Users/${current_username}/iq-oq-sync-test-${current_timestamp}",
+        "branch": "main"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; const repoPath = responseData?.path || null; const initialCommitId = responseData?.head_commit_id || null; const success = responseData && !responseData.error_code; logger.debug('Repo creation:', { success, repoId, repoPath, initialCommitId }); return { ...currentVariables, repo_created: success, repo_id: repoId, repo_path: repoPath, initial_commit_id: initialCommitId, creation_result: responseData }; }"
+    },
+    {
+      "step": 3,
       "name": "trigger_repo_sync",
       "method": "PATCH",
       "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
@@ -35,7 +52,7 @@
       "post_processing": "async function processStep(responseData, currentVariables) { const syncStartTime = Date.now(); logger.debug('Sync triggered at:', syncStartTime); await delay(10000); logger.debug('Waited 10s after triggering sync'); return { ...currentVariables, sync_start_time: syncStartTime }; }"
     },
     {
-      "step": 3,
+      "step": 4,
       "name": "poll_for_commit_change",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
@@ -44,10 +61,22 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "async function processStep(responseData, currentVariables) { const currentCommitId = responseData?.head_commit_id || null; const currentTime = Date.now(); const syncStartTime = currentVariables.sync_start_time || currentTime; const elapsedTime = currentTime - syncStartTime; const maxWaitTime = 5 * 60 * 1000; // 5 minutes in milliseconds const hasChanged = currentCommitId && currentCommitId !== currentVariables.initial_commit_id; const isTimeout = elapsedTime > maxWaitTime; logger.debug('Poll result:', { currentCommitId, initialCommitId: currentVariables.initial_commit_id, hasChanged, elapsedTime, isTimeout }); if (!hasChanged && !isTimeout) { await delay(30000); logger.debug('Waited 30s before next poll'); } return { ...currentVariables, current_commit_id: currentCommitId, elapsed_time_ms: elapsedTime, commit_changed: hasChanged, sync_timeout: isTimeout }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const currentCommitId = responseData?.head_commit_id || null; const currentTime = Date.now(); const syncStartTime = currentVariables.sync_start_time || currentTime; const elapsedTime = currentTime - syncStartTime; const maxWaitTime = 5 * 60 * 1000; // 5 minutes in milliseconds const initialCommitId = currentVariables.initial_commit_id; const commitChanged = currentCommitId && currentCommitId !== initialCommitId; const isTimeout = elapsedTime > maxWaitTime; logger.debug('Commit poll result:', { currentCommitId, initialCommitId, commitChanged, elapsedTime, isTimeout }); if (!commitChanged && !isTimeout) { await delay(30000); logger.debug('Waited 30s before next poll'); } return { ...currentVariables, current_commit_id: currentCommitId, commit_sync_completed: commitChanged, elapsed_time_ms: elapsedTime, sync_timeout: isTimeout }; }"
+    },
+    {
+      "step": 5,
+      "name": "cleanup_delete_repo",
+      "method": "DELETE",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(3000); logger.debug('Waited 3s after deleting repo'); return { ...currentVariables, repo_deleted: true }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const repoStep = stepResults.get_repo_info; const syncStep = stepResults.trigger_repo_sync; const pollStep = stepResults.poll_for_commit_change; const expected_result = 'File Sync Time: <=5 min.'; let actual_result = 'Repository sync not tested'; if (repoStep.error) { return { status: 'fail', message: 'Failed to get repository information', code: 'REPO_INFO_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } const repoId = variables.repo_id; const initialCommitId = variables.initial_commit_id; if (!repoId) { actual_result = 'Repository not found'; return { status: 'fail', message: 'Target repository not found in workspace', code: 'REPO_NOT_FOUND', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (syncStep.error) { return { status: 'fail', message: 'Failed to trigger repository sync', code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (pollStep.error) { return { status: 'fail', message: 'Failed to poll for repository changes', code: 'POLL_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } const currentCommitId = variables.current_commit_id; const elapsedTime = variables.elapsed_time_ms || 0; const commitChanged = variables.commit_changed || false; const syncTimeout = variables.sync_timeout || false; const elapsedMinutes = (elapsedTime / 1000 / 60).toFixed(2); if (commitChanged && !syncTimeout) { actual_result = `File Sync Time: ${elapsedMinutes} min.`; return { status: 'pass', message: `Repository sync completed successfully in ${elapsedMinutes} minutes`, code: 'SYNC_SUCCESS', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (syncTimeout) { actual_result = `File Sync Time: >5 min. (${elapsedMinutes} min.)`; return { status: 'fail', message: `Repository sync timed out after ${elapsedMinutes} minutes`, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (!initialCommitId) { actual_result = 'No initial commit ID found'; return { status: 'fail', message: 'No initial commit ID found in repository', code: 'NO_INITIAL_COMMIT', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else { actual_result = 'Commit ID unchanged'; return { status: 'fail', message: 'Repository commit ID did not change after sync', code: 'NO_COMMIT_CHANGE', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } }",
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const createStep = stepResults.create_new_repo; const syncStep = stepResults.trigger_repo_sync; const pollStep = stepResults.poll_for_commit_change; const cleanupStep = stepResults.cleanup_delete_repo; const expected_result = 'File Sync Time: <=5 min.'; let actual_result = 'Repository sync not tested'; if (userStep.error) { return { status: 'fail', message: 'Failed to get user information', code: 'USER_INFO_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (createStep.error) { return { status: 'fail', message: 'Failed to create repository', code: 'REPO_CREATE_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } const repoId = currentVariables.repo_id; if (!repoId) { actual_result = 'Repository creation failed'; return { status: 'fail', message: 'Repository creation failed - no ID returned', code: 'REPO_CREATE_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (syncStep.error) { return { status: 'fail', message: 'Failed to trigger repository sync', code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (pollStep.error) { return { status: 'fail', message: 'Failed to poll for repository changes', code: 'POLL_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } const initialCommitId = currentVariables.initial_commit_id; const currentCommitId = currentVariables.current_commit_id; const elapsedTime = currentVariables.elapsed_time_ms || 0; const syncCompleted = currentVariables.commit_sync_completed || false; const syncTimeout = currentVariables.sync_timeout || false; const elapsedMinutes = (elapsedTime / 1000 / 60).toFixed(2); if (syncCompleted && !syncTimeout) { actual_result = `File Sync Time: ${elapsedMinutes} min.`; return { status: 'pass', message: `Repository sync completed successfully in ${elapsedMinutes} minutes. Commit: ${initialCommitId?.substring(0, 8)} → ${currentCommitId?.substring(0, 8)}`, code: 'SYNC_SUCCESS', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (syncTimeout) { actual_result = `File Sync Time: >5 min. (${elapsedMinutes} min.)`; return { status: 'fail', message: `Repository sync timed out after ${elapsedMinutes} minutes`, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (!initialCommitId) { actual_result = 'Repository has no commits'; return { status: 'fail', message: 'Repository has no commits, cannot test sync', code: 'REPO_NO_COMMITS', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else { actual_result = 'No commit changes detected'; return { status: 'fail', message: 'No commit changes detected after sync', code: 'NO_COMMIT_CHANGE', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } }",
   "manual_procedure": "Create a test file in Git repository and run sync job in Databricks to verify changes appear within 5 minutes."
 } 
