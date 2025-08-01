@@ -34,7 +34,7 @@
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after revoking SELECT permission'); return currentVariables; }"
     },
     {
       "step": 3,
@@ -76,7 +76,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after deleting group'); return currentVariables; }"
     }
   ],
   "response_schema": null,

@@ -18,11 +18,11 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "REVOKE SELECT ON TABLE ${catalog_name}.silver.sdtm_dm FROM TEMP_GROUP_OQ104",
+        "statement": "REVOKE SELECT ON TABLE ${catalog_name}.silver.sdtm_dm FROM `TEMP_GROUP_OQ104`",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after revoking SELECT permission'); return currentVariables; }"
     },
     {
       "step": 2,
