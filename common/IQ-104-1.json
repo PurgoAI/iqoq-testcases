@@ -5,7 +5,7 @@
   "test_code": "IQ-104-1",
   "test_seq": 1,
   "test_suite": "IQ-104",
-  "test_suite_title": "Cluster Management",
+  "test_suite_title": "Cluster Configuration",
   "category": "IQ",
   "api_calls": [
     {
