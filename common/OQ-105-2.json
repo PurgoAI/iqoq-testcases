@@ -35,10 +35,48 @@
         "displayName": "TEMP_GROUP_OQ104",
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"]
       },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(10000); logger.debug('Waited 10s after group creation for propagation'); const groupId = responseData.id; return { ...currentVariables, group_id: groupId }; }"
+    },
+    {
+      "step": 3,
+      "name": "get_user2_info",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const user2Id = responseData.id; return { ...currentVariables, user2_id: user2Id }; }"
+    },
+    {
+      "step": 4,
+      "name": "add_user_to_group",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [
+          {
+            "op": "add",
+            "value": {
+              "members": [
+                {
+                  "value": "${user2_id}"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after adding user to group'); return currentVariables; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const createStep = stepResults.create_group; let groupExists = false; let groupId = null; const expected_result = 'Result: Group Created'; let actual_result = ''; if (checkStep && checkStep.status === 200 && checkStep.data && checkStep.data.Resources) { const resources = checkStep.data.Resources; if (resources.length > 0) { groupExists = true; groupId = resources[0].id; actual_result = 'Group already existed: TEMP_GROUP_OQ104 (ID: ' + groupId + ')'; } } if (groupExists) { return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + groupId + ') - Group already existed', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (createStep && createStep.status === 201 && createStep.data && createStep.data.id) { groupId = createStep.data.id; actual_result = 'Group created: TEMP_GROUP_OQ104 (ID: ' + groupId + ')'; return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + groupId + ')', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else if (createStep && createStep.status === 409) { actual_result = 'Group already existed: TEMP_GROUP_OQ104'; return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 - Group already existed', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else { let errorMsg = 'Unknown error'; if (createStep && createStep.data && createStep.data.detail) { errorMsg = createStep.data.detail; } else if (createStep && createStep.data && createStep.data.message) { errorMsg = createStep.data.message; } actual_result = 'Failed to create group: ' + errorMsg; return { status: 'fail', message: 'Failed to create group: ' + errorMsg, code: 'GROUP_CREATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } }",
-  "manual_procedure": "Add a new Group called TEMP_<ORG>_OQ104"
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const createStep = stepResults.create_group; const getUserStep = stepResults.get_user2_info; const addUserStep = stepResults.add_user_to_group; let groupExists = false; let groupId = null; const expected_result = 'Result: Group Created and User Added'; let actual_result = ''; if (checkStep && checkStep.status === 200 && checkStep.data && checkStep.data.Resources) { const resources = checkStep.data.Resources; if (resources.length > 0) { groupExists = true; groupId = resources[0].id; actual_result = 'Group already existed: TEMP_GROUP_OQ104 (ID: ' + groupId + ')'; } } if (!getUserStep || getUserStep.status !== 200 || !getUserStep.data || !getUserStep.data.id) { actual_result = 'Failed to get user2 information'; return { status: 'fail', message: 'Failed to get user2 information', code: 'USER_INFO_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!addUserStep || addUserStep.status !== 200) { if (addUserStep && addUserStep.status === 403) { actual_result = 'Failed to add user2 to group: Permission denied'; return { status: 'fail', message: actual_result, code: 'ADD_USER_TO_GROUP_PERMISSION_DENIED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else { actual_result = 'Failed to add user2 to group'; return { status: 'fail', message: 'Failed to add user2 to group TEMP_GROUP_OQ104', code: 'ADD_USER_TO_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } } if (groupExists) { return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + groupId + ') - Group already existed and user added', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (createStep && createStep.status === 201 && createStep.data && createStep.data.id) { groupId = createStep.data.id; actual_result = 'Group created: TEMP_GROUP_OQ104 (ID: ' + groupId + ') and user added'; return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + groupId + ') and user added', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else if (createStep && createStep.status === 409) { actual_result = 'Group already existed: TEMP_GROUP_OQ104 and user added'; return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 - Group already existed and user added', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else { let errorMsg = 'Unknown error'; if (createStep && createStep.data && createStep.data.detail) { errorMsg = createStep.data.detail; } else if (createStep && createStep.data && createStep.data.message) { errorMsg = createStep.data.message; } actual_result = 'Failed to create group: ' + errorMsg; return { status: 'fail', message: 'Failed to create group: ' + errorMsg, code: 'GROUP_CREATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } }",
+  "manual_procedure": "Add a new Group called TEMP_<ORG>_OQ104 and add user to it"
 } 
