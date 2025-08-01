@@ -10,7 +10,7 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "get_git_credentials",
+      "name": "get_git_credentials_and_repo",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/git-credentials",
       "headers": {
@@ -22,6 +22,18 @@
     },
     {
       "step": 2,
+      "name": "get_repo_id",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/repos",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData?.repos || []; let targetRepoId = null; const repoUrl = currentVariables.repo_url || 'https://github.com/PurgoAI/test-iq-oq-git-intg'; for (let i = 0; i < repos.length; i++) { const repo = repos[i]; if (repo && repo.url === repoUrl) { targetRepoId = repo.id; break; } } logger.debug('Repo ID lookup:', { targetRepoId, repoUrl, totalRepos: repos.length }); return { ...currentVariables, repo_id: targetRepoId }; }"
+    },
+    {
+      "step": 3,
       "name": "attempt_unauthorized_sync",
       "method": "PATCH",
       "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
@@ -35,7 +47,7 @@
       "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after unauthorized sync attempt'); return currentVariables; }"
     },
     {
-      "step": 3,
+      "step": 4,
       "name": "attempt_unauthorized_repo_creation",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/repos",
@@ -53,6 +65,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const credStep = stepResults.get_git_credentials; const syncStep = stepResults.attempt_unauthorized_sync; const createStep = stepResults.attempt_unauthorized_repo_creation; const expected_result = 'Access control: 100% blocking'; let actual_result = 'Access control not tested'; if (credStep.error) { return { status: 'fail', message: 'Failed to get Git credentials', code: 'CREDENTIALS_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } const syncStepStatusCode = syncStep.status || 200; const createStepStatusCode = createStep.status || 200; const syncStepData = syncStep.data || {}; const createStepData = createStep.data || {}; const syncError = syncStepData.error?.message || syncStepData.message || ''; const createError = createStepData.error?.message || createStepData.message || ''; const hasSyncPermissionError = syncError.toLowerCase().includes('permission') || syncError.toLowerCase().includes('access') || syncError.toLowerCase().includes('denied') || syncError.toLowerCase().includes('forbidden') || syncError.toLowerCase().includes('unauthorized') || syncStepStatusCode === 401 || syncStepStatusCode === 403; const hasCreatePermissionError = createError.toLowerCase().includes('permission') || createError.toLowerCase().includes('access') || createError.toLowerCase().includes('denied') || createError.toLowerCase().includes('forbidden') || createError.toLowerCase().includes('unauthorized') || createStepStatusCode === 401 || createStepStatusCode === 403; if (hasSyncPermissionError && hasCreatePermissionError) { actual_result = 'Access control: 100% blocking'; return { status: 'pass', message: 'Access control properly configured - all unauthorized operations blocked', code: 'ACCESS_CONTROL_PASSED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else if (hasSyncPermissionError || hasCreatePermissionError) { actual_result = 'Access control: Partial blocking'; return { status: 'pass', message: 'Access control partially working - some unauthorized operations blocked', code: 'ACCESS_CONTROL_PARTIAL', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else { actual_result = 'Access control: No blocking'; return { status: 'fail', message: 'Access control not working - unauthorized operations allowed', code: 'ACCESS_CONTROL_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } }",
+  "parser_code": "function aggregateResults(stepResults) { const credStep = stepResults.get_git_credentials_and_repo; const repoStep = stepResults.get_repo_id; const syncStep = stepResults.attempt_unauthorized_sync; const createStep = stepResults.attempt_unauthorized_repo_creation; const expected_result = 'Access control: 100% blocking'; let actual_result = 'Access control not tested'; if (credStep.error) { return { status: 'fail', message: 'Failed to get Git credentials', code: 'CREDENTIALS_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } if (repoStep.error) { return { status: 'fail', message: 'Failed to get repository information', code: 'REPO_INFO_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } const repoId = variables.repo_id; if (!repoId) { actual_result = 'Repository not found'; return { status: 'fail', message: 'Target repository not found in workspace', code: 'REPO_NOT_FOUND', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } const syncStepStatusCode = syncStep.status || 200; const createStepStatusCode = createStep.status || 200; const syncStepData = syncStep.data || {}; const createStepData = createStep.data || {}; const syncError = syncStepData.error?.message || syncStepData.message || ''; const createError = createStepData.error?.message || createStepData.message || ''; const hasSyncPermissionError = syncError.toLowerCase().includes('permission') || syncError.toLowerCase().includes('access') || syncError.toLowerCase().includes('denied') || syncError.toLowerCase().includes('forbidden') || syncError.toLowerCase().includes('unauthorized') || syncStepStatusCode === 401 || syncStepStatusCode === 403; const hasCreatePermissionError = createError.toLowerCase().includes('permission') || createError.toLowerCase().includes('access') || createError.toLowerCase().includes('denied') || createError.toLowerCase().includes('forbidden') || createError.toLowerCase().includes('unauthorized') || createStepStatusCode === 401 || createStepStatusCode === 403; if (hasSyncPermissionError && hasCreatePermissionError) { actual_result = 'Access control: 100% blocking'; return { status: 'pass', message: 'Access control properly configured - all unauthorized operations blocked', code: 'ACCESS_CONTROL_PASSED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else if (hasSyncPermissionError || hasCreatePermissionError) { actual_result = 'Access control: Partial blocking'; return { status: 'pass', message: 'Access control partially working - some unauthorized operations blocked', code: 'ACCESS_CONTROL_PARTIAL', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else { actual_result = 'Access control: No blocking'; return { status: 'fail', message: 'Access control not working - unauthorized operations allowed', code: 'ACCESS_CONTROL_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } }",
   "manual_procedure": "Attempt to push a commit to the repository from Databricks without a valid Personal Access Token (PAT)."
 } 
