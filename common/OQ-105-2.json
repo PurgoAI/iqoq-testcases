@@ -20,7 +20,7 @@
       "payload": {
         "filter": "displayName eq \"TEMP_GROUP_OQ104\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { let groupId = null; if (responseData && responseData.Resources && responseData.Resources.length > 0) { groupId = responseData.Resources[0].id; } return { ...currentVariables, group_id: groupId }; }"
     },
     {
       "step": 2,
@@ -35,7 +35,7 @@
         "displayName": "TEMP_GROUP_OQ104",
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"]
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { await delay(10000); logger.debug('Waited 10s after group creation for propagation'); const groupId = responseData.id; return { ...currentVariables, group_id: groupId }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { await delay(10000); logger.debug('Waited 10s after group creation for propagation'); const groupId = responseData.id || currentVariables.group_id; return { ...currentVariables, group_id: groupId }; }"
     },
     {
       "step": 3,
@@ -53,7 +53,7 @@
       "step": 4,
       "name": "add_user_to_group",
       "method": "PATCH",
-      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/{{group_id}}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -66,7 +66,7 @@
             "value": {
               "members": [
                 {
-                  "value": "${user2_id}"
+                  "value": "{{user2_id}}"
                 }
               ]
             }
