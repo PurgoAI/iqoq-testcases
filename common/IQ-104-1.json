@@ -48,7 +48,7 @@
       "payload": {
         "cluster_id": "${cluster_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(120000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
     },
     {
       "step": 4,
@@ -62,7 +62,7 @@
       "payload": {
         "cluster_id": "${cluster_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(120000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
     },
     {
       "step": 5,
@@ -76,7 +76,7 @@
       "payload": {
         "cluster_id": "${cluster_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(120000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
     },
     {
       "step": 6,
@@ -90,7 +90,7 @@
       "payload": {
         "cluster_id": "${cluster_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(120000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
     },
     {
       "step": 7,
@@ -104,7 +104,7 @@
       "payload": {
         "cluster_id": "${cluster_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(120000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
     },
     {
       "step": 8,
@@ -118,7 +118,7 @@
       "payload": {
         "cluster_id": "${cluster_id}"
       },
-            "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(60000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
+            "post_processing": "async function processStep(responseData, currentVariables) { const state = responseData.state; if (state === 'RUNNING') { logger.debug('Cluster is now RUNNING'); return { ...currentVariables, cluster_state: state, cluster_running: true }; } else if (state === 'TERMINATED' || state === 'TERMINATING') { logger.debug('Cluster terminated, cannot reach RUNNING state'); return { ...currentVariables, cluster_state: state, cluster_running: false }; } else { logger.debug('Cluster state: ' + state + ', waiting...'); await delay(120000); return { ...currentVariables, cluster_state: state, cluster_running: false }; } }"
     }
   ],
   "response_schema": null,
