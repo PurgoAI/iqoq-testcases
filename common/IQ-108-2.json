@@ -1,7 +1,7 @@
 {
   "title": "Access Control",
   "test_description": "Validate that Git write operations are blocked by attempting to update the repo's tag after deleting credentials.",
-  "version": "1.5",
+  "version": "1.6",
   "test_code": "IQ-108-2",
   "test_seq": 2,
   "test_suite": "IQ-108",
@@ -30,11 +30,11 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData?.credentials || []; const hasCredentials = credentials.length > 0; logger.debug('Existing credentials check:', { hasCredentials, credentialsCount: credentials.length }); return { ...currentVariables, has_credentials: hasCredentials, credentials_count: credentials.length }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData?.credentials || []; let existingCredentialId = null; let hasCredentials = credentials.length > 0; if (hasCredentials) { for (let i = 0; i < credentials.length; i++) { const cred = credentials[i]; if (cred && cred.git_provider && cred.git_username && cred.git_provider.toLowerCase() === currentVariables.git_provider.toLowerCase() && cred.git_username === currentVariables.git_username) { existingCredentialId = cred.credential_id; break; } } if (!existingCredentialId && credentials.length > 0) { existingCredentialId = credentials[0].credential_id; } } logger.debug('Existing credentials check:', { hasCredentials, existingCredentialId, credentialsCount: credentials.length }); return { ...currentVariables, has_credentials: hasCredentials, existing_credential_id: existingCredentialId, credentials_count: credentials.length }; }"
     },
     {
       "step": 3,
-      "name": "create_credentials",
+      "name": "create_or_update_credentials",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/git-credentials",
       "headers": {
@@ -46,7 +46,7 @@
         "git_username": "${git_username}",
         "git_provider": "${git_provider}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const credentialId = responseData?.credential_id || null; logger.debug('Credentials created:', { credentialId, gitProvider: currentVariables.git_provider, gitUsername: currentVariables.git_username }); return { ...currentVariables, new_credential_id: credentialId }; }"
+      "post_processing": "function processStep(responseData, currentVariables, response) { const credentialId = responseData?.credential_id || currentVariables.existing_credential_id; const statusCode = response && response.status ? response.status : 200; const isUpdate = currentVariables.has_credentials && currentVariables.existing_credential_id; const isCreated = statusCode === 200 && credentialId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); logger.debug('Credentials operation result:', { credentialId, statusCode, isUpdate, isCreated, alreadyExists }); return { ...currentVariables, new_credential_id: credentialId, credentials_created: isCreated, credentials_updated: isUpdate, credentials_already_exist: alreadyExists }; }"
     },
     {
       "step": 4,
