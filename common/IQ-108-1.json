@@ -1,7 +1,7 @@
 {
   "title": "Repository Sync",
   "test_description": "Validate repository sync by deleting files inside the repository and verifying they are restored from the remote within 5 minutes.",
-  "version": "1.3",
+  "version": "1.5",
   "test_code": "IQ-108-1",
   "test_seq": 1,
   "test_suite": "IQ-108",
@@ -49,7 +49,7 @@
       "payload": {
         "path": "${repo_path}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData?.objects || []; const initialObjectCount = objects.length; if (initialObjectCount === 0) { throw new Error('Cannot test sync on an empty repository.'); } logger.debug('Initial repo content:', { initialObjectCount, objects }); return { ...currentVariables, initial_object_count: initialObjectCount, initial_objects: objects }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData?.objects || []; const initialObjectCount = objects.length; if (initialObjectCount === 0) { throw new Error('Repository is empty, cannot test sync'); } logger.debug('Initial repo content:', { initialObjectCount, objects }); return { ...currentVariables, initial_object_count: initialObjectCount, initial_objects: objects }; }"
     },
     {
       "step": 4,
@@ -61,13 +61,43 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "path": "${repo_path}",
+        "path": "${repo_path}/README.md",
         "recursive": true
       },
-      "post_processing": "function processStep(responseData, currentVariables) { logger.debug('Deleted files inside repo to prepare for sync test.'); return { ...currentVariables, files_deleted: true }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { logger.debug('Deleted README.md file'); return { ...currentVariables, readme_deleted: true }; }"
     },
     {
       "step": 5,
+      "name": "delete_more_files",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/workspace/delete",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "path": "${repo_path}/sync-test-validation.txt",
+        "recursive": true
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { logger.debug('Deleted sync-test-validation.txt file'); return { ...currentVariables, validation_file_deleted: true }; }"
+    },
+    {
+      "step": 6,
+      "name": "delete_additional_files",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/workspace/delete",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "path": "${repo_path}/sync-test-validation-${current_timestamp}.txt",
+        "recursive": true
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { logger.debug('Deleted timestamped validation file'); return { ...currentVariables, timestamped_file_deleted: true }; }"
+    },
+    {
+      "step": 7,
       "name": "trigger_repo_sync",
       "method": "PATCH",
       "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
@@ -81,7 +111,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { const syncStartTime = Date.now(); logger.debug('Sync triggered at:', syncStartTime); return { ...currentVariables, sync_start_time: syncStartTime }; }"
     },
     {
-      "step": 6,
+      "step": 8,
       "name": "poll_for_restoration",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/workspace/list",
@@ -95,7 +125,7 @@
       "post_processing": "async function processStep(responseData, currentVariables) { const initialCount = currentVariables.initial_object_count || 1; const currentCount = responseData?.objects?.length || 0; const filesRestored = currentCount >= initialCount; const elapsedTime = Date.now() - (currentVariables.sync_start_time || Date.now()); const isTimeout = elapsedTime > 300000; logger.debug('Polling for file restoration:', { filesRestored, currentCount, initialCount, elapsedTime, isTimeout }); if (!filesRestored && !isTimeout) { await delay(30000); } return { ...currentVariables, files_restored: filesRestored, sync_timeout: isTimeout, elapsed_time_ms: elapsedTime }; }"
     },
     {
-      "step": 7,
+      "step": 9,
       "name": "cleanup_delete_repo",
       "method": "DELETE",
       "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
@@ -109,5 +139,5 @@
   ],
   "response_schema": null,
   "parser_code": "function aggregateResults(stepResults) { const pollStep = stepResults.poll_for_restoration; const expected_result = 'Files restored by sync in <= 5 min.'; let actual_result = 'Repository sync not tested'; if (pollStep.error) { return { status: 'fail', message: `Polling failed: ${pollStep.error.message}`, code: 'POLL_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } const filesRestored = variables.files_restored; const syncTimeout = variables.sync_timeout; const elapsedMinutes = (variables.elapsed_time_ms / 60000).toFixed(2); if (filesRestored) { actual_result = `Files restored in ${elapsedMinutes} min.`; return { status: 'pass', message: `Repository content was successfully restored in ${elapsedMinutes} minutes.`, code: 'SYNC_RESTORED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (syncTimeout) { actual_result = 'Sync timed out (> 5 min).'; return { status: 'fail', message: `Sync timed out after 5 minutes. Files were not restored.`, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else { actual_result = 'Files not restored.'; return { status: 'fail', message: 'Test finished, but files were not restored by sync.', code: 'SYNC_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } }",
-  "manual_procedure": "Delete files inside the repository and verify they are restored from remote within 5 minutes."
+  "manual_procedure": "Delete individual files inside the repository and verify they are restored from remote within 5 minutes."
 } 
