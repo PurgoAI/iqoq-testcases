@@ -1,7 +1,7 @@
 {
   "title": "Access Control",
   "test_description": "Validate that Git write operations are blocked by attempting to update the repo's tag after deleting credentials.",
-  "version": "1.3",
+  "version": "1.4",
   "test_code": "IQ-108-2",
   "test_seq": 2,
   "test_suite": "IQ-108",
@@ -30,13 +30,13 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const cred = responseData?.credentials?.[0] || {}; logger.debug('Existing credential found:', { credentialId: cred.credential_id }); return { ...currentVariables, credential_id: cred.credential_id }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData?.credentials || []; const cred = credentials[0] || {}; const hasCredentials = credentials.length > 0; logger.debug('Existing credentials check:', { hasCredentials, credentialId: cred.credential_id, credentialsCount: credentials.length }); return { ...currentVariables, credential_id: cred.credential_id, has_credentials: hasCredentials, credentials_count: credentials.length }; }"
     },
     {
       "step": 3,
       "name": "create_or_update_credentials",
-      "method": "PATCH",
-      "api_url": "${workspace_url}/api/2.0/git-credentials/${credential_id}",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
@@ -46,7 +46,7 @@
         "git_username": "${git_username}",
         "git_provider": "${git_provider}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { logger.debug('Credentials updated successfully'); return { ...currentVariables, new_credential_id: currentVariables.credential_id }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const credentialId = responseData?.credential_id || currentVariables.credential_id; logger.debug('Credentials created/updated:', { credentialId, gitProvider: currentVariables.git_provider, gitUsername: currentVariables.git_username }); return { ...currentVariables, new_credential_id: credentialId }; }"
     },
     {
       "step": 4,
@@ -106,5 +106,5 @@
   ],
   "response_schema": null,
   "parser_code": "function aggregateResults(stepResults) { const unauthStep = stepResults.attempt_unauthorized_operation; const expected_result = 'Access control: Write operations blocked'; let actual_result = 'Access control not tested'; if (unauthStep.error) { return { status: 'fail', message: `Unauthorized operation step failed unexpectedly: ${unauthStep.error.message}`, code: 'TEST_ERROR', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } const operationBlocked = variables.operation_blocked; const hasPermissionError = variables.has_permission_error; const blockStatusCode = variables.block_status_code; if (operationBlocked) { actual_result = `Operation blocked with status ${blockStatusCode}`; const message = hasPermissionError ? `Access control correctly blocked an unauthorized write operation with explicit permission error.` : `Access control correctly blocked an unauthorized write operation with status ${blockStatusCode}.`; return { status: 'pass', message: message, code: 'WRITE_BLOCKED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else { actual_result = 'Operation was allowed.'; return { status: 'fail', message: 'Security Risk: A write-like operation succeeded without credentials.', code: 'WRITE_ALLOWED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } }",
-  "manual_procedure": "Delete Git credentials and attempt to update repository tag to validate access control."
+  "manual_procedure": "Create Git credentials, then delete them and attempt to update repository tag to validate access control."
 } 
