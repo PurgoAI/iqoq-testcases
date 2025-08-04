@@ -1,7 +1,7 @@
 {
-  "title": "Git Credential Creation and Repository Access",
-  "test_description": "Validate Git credential creation and repository access by testing credential creation, repository access, and repository sync functionality.",
-  "version": "2.3",
+  "title": "Git Connection Validation - Complete",
+  "test_description": "Complete Git connection validation including credential creation, repository access, and repository sync validation. Tests the entire Git integration workflow in a single test.",
+  "version": "3.0",
   "test_code": "IQ-108-1",
   "test_seq": 1,
   "test_suite": "IQ-108",
@@ -50,7 +50,7 @@
     },
     {
       "step": 4,
-      "name": "list_repositories",
+      "name": "check_repository_exists",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/repos",
       "headers": {
@@ -58,11 +58,11 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; return { ...currentVariables, repo_found: repoFound, repo_id: repoId, repo_path: repoPath, repos_count: repos.length }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath }; }"
     },
     {
       "step": 5,
-      "name": "create_repository_if_not_exists",
+      "name": "create_repository_if_needed",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/repos",
       "headers": {
@@ -81,10 +81,80 @@
           ]
         }
       },
-      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const repoId = responseData?.id || currentVariables.repo_id; const repoPath = responseData?.path || currentVariables.repo_path; const isCreated = statusCode === 200 && repoId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists || currentVariables.repo_found; return { ...currentVariables, repo_id: repoId, repo_path: repoPath, repo_created: isCreated, repo_already_exists: alreadyExists, repo_operation_success: success }; }"
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const repoId = responseData?.id || currentVariables.repo_id; const repoPath = responseData?.path || currentVariables.repo_path; const isCreated = statusCode === 200 && repoId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists || currentVariables.repo_exists; return { ...currentVariables, repo_id: repoId, repo_path: repoPath, repo_created: isCreated, repo_already_exists: alreadyExists, repo_operation_success: success }; }"
     },
     {
       "step": 6,
+      "name": "list_repository_contents",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/workspace/list",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "path": "${repo_path}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const initialFileCount = objects.length; const hasFiles = initialFileCount > 0; return { ...currentVariables, initial_file_count: initialFileCount, initial_files: objects, has_files: hasFiles }; }"
+    },
+    {
+      "step": 7,
+      "name": "delete_repository_files",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/workspace/list",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "path": "${repo_path}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const objects = responseData.objects || []; let deletedCount = 0; let failedCount = 0; for (const obj of objects) { const objPath = obj.path; if (objPath && objPath !== currentVariables.repo_path) { try { const deleteResponse = await axios.post(`${currentVariables.workspace_url}/api/2.0/workspace/delete`, { path: objPath, recursive: true }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); if (deleteResponse.status === 200 || deleteResponse.status === 204) { deletedCount++; } else { failedCount++; } } catch (error) { failedCount++; } } } const success = deletedCount > 0; return { ...currentVariables, files_deleted: success, deleted_count: deletedCount, failed_count: failedCount }; }"
+    },
+    {
+      "step": 8,
+      "name": "verify_repository_empty",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/workspace/list",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "path": "${repo_path}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const isEmpty = objects.length === 0; return { ...currentVariables, repository_empty: isEmpty, remaining_objects: objects.length }; }"
+    },
+    {
+      "step": 9,
+      "name": "trigger_repository_sync",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "branch": "main"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; return { ...currentVariables, sync_triggered: success }; }"
+    },
+    {
+      "step": 10,
+      "name": "poll_for_sync_completion",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/workspace/list",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "path": "${repo_path}"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const initialObjects = responseData.objects || []; if (initialObjects.length > 0) { return { ...currentVariables, sync_completed: true, polling_completed: true, poll_attempts: 1, sync_time_seconds: 0 }; } let pollAttempts = 0; const maxAttempts = 20; const pollInterval = 30000; while (pollAttempts < maxAttempts) { pollAttempts++; try { const response = await axios.get(`${currentVariables.workspace_url}/api/2.0/workspace/list`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' }, params: { path: currentVariables.repo_path } }); const objects = response.data.objects || []; if (objects.length > 0) { return { ...currentVariables, sync_completed: true, polling_completed: true, poll_attempts: pollAttempts, sync_time_seconds: pollAttempts * 30 }; } else { if (pollAttempts < maxAttempts) { try { await axios.patch(`${currentVariables.workspace_url}/api/2.0/repos/${currentVariables.repo_id}`, { branch: 'main' }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); } catch (syncError) { } await delay(pollInterval); } } } catch (error) { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } return { ...currentVariables, sync_completed: false, polling_completed: true, poll_attempts: maxAttempts, polling_timeout: true, sync_time_seconds: maxAttempts * 30 }; }"
+    },
+    {
+      "step": 11,
       "name": "validate_repository_access",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/repos",
@@ -97,6 +167,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const credentialsStep = stepResults.check_existing_credentials; const createCredentialsStep = stepResults.create_or_update_credentials; const listReposStep = stepResults.list_repositories; const createRepoStep = stepResults.create_repository_if_not_exists; const validateAccessStep = stepResults.validate_repository_access; const expected_result = 'Git credentials created and repository access validated successfully'; let actual_result = 'Git connection validation not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'IQ-108-1', title: 'Git Credential Creation and Repository Access', expected_result, actual_result }; } if (!createCredentialsStep || !createCredentialsStep.data || !variables.credential_operation_success) { actual_result = 'Failed to create or verify Git credentials.'; return { status: 'fail', message: actual_result, code: 'CREDENTIALS_FAILED', test_id: 'IQ-108-1', title: 'Git Credential Creation and Repository Access', expected_result, actual_result }; } if (!validateAccessStep || !validateAccessStep.data || !variables.repository_access_validated) { actual_result = 'Failed to validate repository access.'; return { status: 'fail', message: actual_result, code: 'REPO_ACCESS_FAILED', test_id: 'IQ-108-1', title: 'Git Credential Creation and Repository Access', expected_result, actual_result }; } actual_result = 'Git credentials created successfully and repository access validated'; return { status: 'pass', message: 'Git credential creation and repository access validation passed', code: 'GIT_CREDS_AND_ACCESS_PASSED', test_id: 'IQ-108-1', title: 'Git Credential Creation and Repository Access', expected_result, actual_result }; }",
-  "manual_procedure": "Get user info, check existing Git credentials, create or update Git credentials, list repositories, create repository if not exists, and validate repository access."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const credentialsStep = stepResults.check_existing_credentials; const createCredentialsStep = stepResults.create_or_update_credentials; const checkRepoStep = stepResults.check_repository_exists; const createRepoStep = stepResults.create_repository_if_needed; const listStep = stepResults.list_repository_contents; const deleteStep = stepResults.delete_repository_files; const verifyStep = stepResults.verify_repository_empty; const syncStep = stepResults.trigger_repository_sync; const pollStep = stepResults.poll_for_sync_completion; const validateAccessStep = stepResults.validate_repository_access; const expected_result = 'Complete Git connection validation: credentials created, repository accessed, and sync validated successfully'; let actual_result = 'Git connection validation not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!createCredentialsStep || !createCredentialsStep.data || !variables.credential_operation_success) { actual_result = 'Failed to create or verify Git credentials.'; return { status: 'fail', message: actual_result, code: 'CREDENTIALS_FAILED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!createRepoStep || !createRepoStep.data || !variables.repo_operation_success) { actual_result = 'Failed to create or find repository.'; return { status: 'fail', message: actual_result, code: 'REPO_CREATION_FAILED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!listStep || !listStep.data || !variables.has_files) { actual_result = 'No files found in repository initially.'; return { status: 'fail', message: actual_result, code: 'NO_INITIAL_FILES', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!deleteStep || !deleteStep.data || !variables.files_deleted) { actual_result = 'Failed to delete repository files.'; return { status: 'fail', message: actual_result, code: 'FILE_DELETE_FAILED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!verifyStep || !verifyStep.data) { actual_result = 'Failed to verify repository is empty after deletion.'; return { status: 'fail', message: actual_result, code: 'VERIFY_EMPTY_FAILED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!syncStep || !syncStep.data || !variables.sync_triggered) { actual_result = 'Failed to trigger repository sync.'; return { status: 'fail', message: actual_result, code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!pollStep || !pollStep.data || !variables.polling_completed) { actual_result = 'Failed to complete repository sync polling.'; return { status: 'fail', message: actual_result, code: 'POLLING_INCOMPLETE', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (!validateAccessStep || !validateAccessStep.data || !variables.repository_access_validated) { actual_result = 'Failed to validate repository access.'; return { status: 'fail', message: actual_result, code: 'REPO_ACCESS_FAILED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } if (variables.sync_completed) { const pollAttempts = variables.poll_attempts || 0; const deletedCount = variables.deleted_count || 0; const syncTime = variables.sync_time_seconds || 0; actual_result = `Complete Git validation successful: credentials created, repository accessed, and sync completed after ${pollAttempts} polling attempts in ${syncTime.toFixed(2)} seconds. Deleted ${deletedCount} files initially.`; return { status: 'pass', message: 'Complete Git connection validation passed: credentials, access, and sync all validated successfully', code: 'GIT_COMPLETE_VALIDATION_PASSED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } else { const syncTime = variables.sync_time_seconds || 0; const pollAttempts = variables.poll_attempts || 0; if (variables.polling_timeout) { actual_result = `Git validation completed but sync did not complete within time limit (${syncTime.toFixed(2)} seconds after ${pollAttempts} polling attempts).`; return { status: 'fail', message: actual_result, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } else { actual_result = `Git validation completed - credentials and access validated, sync process initiated. Sync time: ${syncTime.toFixed(2)} seconds.`; return { status: 'pass', message: 'Git validation completed - credentials and access validated, sync process initiated successfully', code: 'GIT_PARTIAL_VALIDATION_PASSED', test_id: 'IQ-108-1', title: 'Git Connection Validation - Complete', expected_result, actual_result }; } } }",
+  "manual_procedure": "Get user info, check existing Git credentials, create or update Git credentials, check repository exists, create repository if needed, list initial contents, delete repository files individually, verify repository is empty, trigger sync, poll for sync completion (up to 10 minutes), and validate repository access."
 } 
