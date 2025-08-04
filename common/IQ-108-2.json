@@ -10,6 +10,18 @@
   "api_calls": [
     {
       "step": 1,
+      "name": "get_current_user",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData.userName || 'validation-user'; const currentTimestamp = Date.now(); return { ...currentVariables, user_name: userName, current_timestamp: currentTimestamp }; }"
+    },
+    {
+      "step": 2,
       "name": "check_repository_exists",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/repos",
@@ -18,10 +30,10 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; const currentTimestamp = Date.now(); return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath, current_timestamp: currentTimestamp }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath }; }"
     },
     {
-      "step": 2,
+      "step": 3,
       "name": "create_repository_if_needed",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/repos",
@@ -32,7 +44,7 @@
       "payload": {
         "url": "${repo_url}",
         "provider": "${git_provider}",
-        "path": "/Repos/iq-oq-sync-validation-${current_timestamp}",
+        "path": "/Users/${user_name}/iq-oq-sync-validation-${current_timestamp}",
         "branch": "main",
         "sparse_checkout": {
           "patterns": [
@@ -44,7 +56,7 @@
       "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const repoId = responseData?.id || currentVariables.repo_id; const repoPath = responseData?.path || currentVariables.repo_path; const isCreated = statusCode === 200 && repoId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists || currentVariables.repo_exists; return { ...currentVariables, repo_id: repoId, repo_path: repoPath, repo_created: isCreated, repo_already_exists: alreadyExists, repo_operation_success: success }; }"
     },
     {
-      "step": 3,
+      "step": 4,
       "name": "list_repository_contents",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/workspace/list",
@@ -58,7 +70,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const initialFileCount = objects.length; const hasFiles = initialFileCount > 0; return { ...currentVariables, initial_file_count: initialFileCount, initial_files: objects, has_files: hasFiles }; }"
     },
     {
-      "step": 4,
+      "step": 5,
       "name": "delete_repository_files",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/workspace/list",
@@ -72,7 +84,7 @@
       "post_processing": "async function processStep(responseData, currentVariables) { const objects = responseData.objects || []; let deletedCount = 0; let failedCount = 0; console.log('Starting individual file deletion for repository sync test'); console.log(`Found ${objects.length} objects to delete`); for (const obj of objects) { const objPath = obj.path; if (objPath && objPath !== currentVariables.repo_path) { console.log(`Deleting individual file: ${objPath}`); try { const deleteResponse = await axios.post(`${currentVariables.workspace_url}/api/2.0/workspace/delete`, { path: objPath, recursive: true }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); if (deleteResponse.status === 200 || deleteResponse.status === 204) { deletedCount++; console.log(`Successfully deleted: ${objPath}`); } else { failedCount++; console.log(`Failed to delete ${objPath}: ${deleteResponse.status} - ${deleteResponse.data}`); } } catch (error) { failedCount++; console.log(`Error deleting ${objPath}: ${error.message}`); } } else { console.log(`Skipping repository folder itself: ${objPath}`); } } const success = deletedCount > 0; console.log(`File deletion completed: ${deletedCount} deleted, ${failedCount} failed`); return { ...currentVariables, files_deleted: success, deleted_count: deletedCount, failed_count: failedCount }; }"
     },
     {
-      "step": 5,
+      "step": 6,
       "name": "verify_repository_empty",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/workspace/list",
@@ -86,7 +98,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const isEmpty = objects.length === 0; if (!isEmpty) { console.log(`Repository still contains ${objects.length} objects after deletion`); } return { ...currentVariables, repository_empty: isEmpty, remaining_objects: objects.length }; }"
     },
     {
-      "step": 6,
+      "step": 7,
       "name": "trigger_repository_sync",
       "method": "PATCH",
       "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
@@ -100,7 +112,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; return { ...currentVariables, sync_triggered: success }; }"
     },
     {
-      "step": 7,
+      "step": 8,
       "name": "poll_for_sync_completion",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/workspace/list",
@@ -115,6 +127,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const checkRepoStep = stepResults.check_repository_exists; const createRepoStep = stepResults.create_repository_if_needed; const listStep = stepResults.list_repository_contents; const deleteStep = stepResults.delete_repository_files; const verifyStep = stepResults.verify_repository_empty; const syncStep = stepResults.trigger_repository_sync; const pollStep = stepResults.poll_for_sync_completion; const expected_result = 'Repository sync completed successfully within time limit'; let actual_result = 'Repository sync validation not completed'; if (!createRepoStep || !createRepoStep.data || !variables.repo_operation_success) { actual_result = 'Failed to create or find repository.'; return { status: 'fail', message: actual_result, code: 'REPO_CREATION_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!listStep || !listStep.data || !variables.has_files) { actual_result = 'No files found in repository initially.'; return { status: 'fail', message: actual_result, code: 'NO_INITIAL_FILES', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!deleteStep || !deleteStep.data || !variables.files_deleted) { actual_result = 'Failed to delete repository files.'; return { status: 'fail', message: actual_result, code: 'FILE_DELETE_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!verifyStep || !verifyStep.data) { actual_result = 'Failed to verify repository is empty after deletion.'; return { status: 'fail', message: actual_result, code: 'VERIFY_EMPTY_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!syncStep || !syncStep.data || !variables.sync_triggered) { actual_result = 'Failed to trigger repository sync.'; return { status: 'fail', message: actual_result, code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!pollStep || !pollStep.data || !variables.polling_completed) { actual_result = 'Failed to complete repository sync polling.'; return { status: 'fail', message: actual_result, code: 'POLLING_INCOMPLETE', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (variables.sync_completed) { const pollAttempts = variables.poll_attempts || 0; const deletedCount = variables.deleted_count || 0; actual_result = `Repository sync completed successfully after ${pollAttempts} polling attempts. Deleted ${deletedCount} files initially.`; return { status: 'pass', message: 'Repository sync validation passed: Files restored after sync', code: 'REPO_SYNC_PASSED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } else { actual_result = 'Repository sync did not complete within the time limit.'; return { status: 'fail', message: actual_result, code: 'REPO_SYNC_TIMEOUT', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } }",
-  "manual_procedure": "Check if repository exists, create repository if needed, list initial contents, delete repository files individually, verify repository is empty, trigger sync, and poll for sync completion."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const checkRepoStep = stepResults.check_repository_exists; const createRepoStep = stepResults.create_repository_if_needed; const listStep = stepResults.list_repository_contents; const deleteStep = stepResults.delete_repository_files; const verifyStep = stepResults.verify_repository_empty; const syncStep = stepResults.trigger_repository_sync; const pollStep = stepResults.poll_for_sync_completion; const expected_result = 'Repository sync completed successfully within time limit'; let actual_result = 'Repository sync validation not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!createRepoStep || !createRepoStep.data || !variables.repo_operation_success) { actual_result = 'Failed to create or find repository.'; return { status: 'fail', message: actual_result, code: 'REPO_CREATION_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!listStep || !listStep.data || !variables.has_files) { actual_result = 'No files found in repository initially.'; return { status: 'fail', message: actual_result, code: 'NO_INITIAL_FILES', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!deleteStep || !deleteStep.data || !variables.files_deleted) { actual_result = 'Failed to delete repository files.'; return { status: 'fail', message: actual_result, code: 'FILE_DELETE_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!verifyStep || !verifyStep.data) { actual_result = 'Failed to verify repository is empty after deletion.'; return { status: 'fail', message: actual_result, code: 'VERIFY_EMPTY_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!syncStep || !syncStep.data || !variables.sync_triggered) { actual_result = 'Failed to trigger repository sync.'; return { status: 'fail', message: actual_result, code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (!pollStep || !pollStep.data || !variables.polling_completed) { actual_result = 'Failed to complete repository sync polling.'; return { status: 'fail', message: actual_result, code: 'POLLING_INCOMPLETE', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } if (variables.sync_completed) { const pollAttempts = variables.poll_attempts || 0; const deletedCount = variables.deleted_count || 0; actual_result = `Repository sync completed successfully after ${pollAttempts} polling attempts. Deleted ${deletedCount} files initially.`; return { status: 'pass', message: 'Repository sync validation passed: Files restored after sync', code: 'REPO_SYNC_PASSED', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } else { actual_result = 'Repository sync did not complete within the time limit.'; return { status: 'fail', message: actual_result, code: 'REPO_SYNC_TIMEOUT', test_id: 'IQ-108-2', title: 'Repository Sync Validation', expected_result, actual_result }; } }",
+  "manual_procedure": "Get current user, check if repository exists, create repository if needed, list initial contents, delete repository files individually, verify repository is empty, trigger sync, and poll for sync completion."
 } 
