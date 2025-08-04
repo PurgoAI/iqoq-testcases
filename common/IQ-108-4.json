@@ -1,0 +1,55 @@
+{
+  "title": "Token Encryption Validation",
+  "test_description": "Validate that personal access tokens are properly encrypted and not exposed in API responses.",
+  "version": "2.3",
+  "test_code": "IQ-108-4",
+  "test_seq": 4,
+  "test_suite": "IQ-108",
+  "test_suite_title": "Git Connection Validation",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_existing_credentials",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData.credentials || []; const hasCredentials = credentials.length > 0; const credentialsCount = credentials.length; return { ...currentVariables, has_credentials: hasCredentials, credentials_count: credentialsCount, all_credentials: credentials }; }"
+    },
+    {
+      "step": 2,
+      "name": "create_credentials_if_needed",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "git_provider": "${git_provider}",
+        "git_username": "${git_username}",
+        "personal_access_token": "${personal_access_token}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const credentialId = responseData?.credential_id; const statusCode = response && response.status ? response.status : 200; const isCreated = statusCode === 200 && credentialId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists || currentVariables.has_credentials; return { ...currentVariables, credential_id: credentialId, credentials_created: success, credentials_already_exist: alreadyExists }; }"
+    },
+    {
+      "step": 3,
+      "name": "validate_token_encryption",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData.credentials || []; let tokenExposed = false; let hasCredentials = credentials.length > 0; if (hasCredentials) { for (let i = 0; i < credentials.length; i++) { const cred = credentials[i]; if (cred && cred.personal_access_token && cred.personal_access_token.length > 0) { tokenExposed = true; break; } } } return { ...currentVariables, token_exposed: tokenExposed, has_credentials: hasCredentials, credentials_count: credentials.length, final_credentials: credentials }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const checkCredsStep = stepResults.check_existing_credentials; const createCredsStep = stepResults.create_credentials_if_needed; const validateStep = stepResults.validate_token_encryption; const expected_result = 'Personal access tokens are properly encrypted and not exposed'; let actual_result = 'Token encryption validation not completed'; if (!checkCredsStep || !checkCredsStep.data) { actual_result = 'Failed to check existing credentials.'; return { status: 'fail', message: actual_result, code: 'CREDS_CHECK_FAILED', test_id: 'IQ-108-4', title: 'Token Encryption Validation', expected_result, actual_result }; } if (!createCredsStep || !createCredsStep.data || !variables.credentials_created) { actual_result = 'Failed to create or verify Git credentials.'; return { status: 'fail', message: actual_result, code: 'CREDENTIALS_FAILED', test_id: 'IQ-108-4', title: 'Token Encryption Validation', expected_result, actual_result }; } if (!validateStep || !validateStep.data) { actual_result = 'Failed to validate token encryption.'; return { status: 'fail', message: actual_result, code: 'VALIDATION_FAILED', test_id: 'IQ-108-4', title: 'Token Encryption Validation', expected_result, actual_result }; } if (!variables.has_credentials) { actual_result = 'No credentials found to validate encryption.'; return { status: 'fail', message: actual_result, code: 'NO_CREDENTIALS', test_id: 'IQ-108-4', title: 'Token Encryption Validation', expected_result, actual_result }; } if (variables.token_exposed) { actual_result = 'Personal access token was exposed in API response.'; return { status: 'fail', message: 'Security Risk: The Personal Access Token was visible in the API response.', code: 'TOKEN_EXPOSED', test_id: 'IQ-108-4', title: 'Token Encryption Validation', expected_result, actual_result }; } else { actual_result = 'Personal access tokens are properly encrypted and not exposed.'; return { status: 'pass', message: 'Token encryption validation passed: Tokens are properly secured', code: 'TOKENS_ENCRYPTED', test_id: 'IQ-108-4', title: 'Token Encryption Validation', expected_result, actual_result }; } }",
+  "manual_procedure": "Check existing Git credentials, create credentials if needed, and validate that personal access tokens are not exposed in API responses."
+} 
