@@ -60,7 +60,7 @@
       "payload": {
         "url": "${repo_url}",
         "provider": "github",
-        "path": "/Users/${user_name}/iq-oq-access-test-${current_timestamp}",
+        "path": "/Users/${user_name}/iq-oq-sync-IQ108-${current_timestamp}",
         "branch": "main"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; const repoPath = responseData?.path || null; return { ...currentVariables, repo_id: repoId, repo_path: repoPath }; }"
