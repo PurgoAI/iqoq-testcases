@@ -1,6 +1,6 @@
 {
   "title": "Authorization Listing - Positive",
-  "test_description": "Authorization Listing - Positive: Grant USE CATALOG and USE SCHEMA permissions to TEMP_GROUP_OQ104, add user2 to group, and verify user2 can list tables in the schema.",
+  "test_description": "Authorization Listing - Positive: Grant USE CATALOG and USE SCHEMA permissions to TEMP_GROUP_OQ105, add user2 to group, and verify user2 can list tables in the schema.",
   "version": "2.0",
   "test_code": "OQ-105-3",
   "test_seq": 3,
@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "filter": "displayName eq \"TEMP_GROUP_OQ104\""
+        "filter": "displayName eq \"TEMP_GROUP_OQ105\""
       },
       "post_processing": "async function processStep(responseData, currentVariables) { let groupId = null; if (responseData && responseData.Resources && responseData.Resources.length > 0) { groupId = responseData.Resources[0].id; logger.debug('Found group ID:', groupId); } if (!groupId) { await delay(2000); } return { ...currentVariables, group_id: groupId }; }"
     },
@@ -70,7 +70,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_GROUP_OQ104",
+        "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Catalog permissions granted:', success); await delay(3000); return { ...currentVariables, catalog_permissions_granted: success }; }"
@@ -85,7 +85,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_GROUP_OQ104",
+        "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Schema permissions granted:', success); await delay(3000); return { ...currentVariables, schema_permissions_granted: success }; }"
