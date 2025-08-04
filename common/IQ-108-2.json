@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; const currentTimestamp = Date.now(); return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath, current_timestamp: currentTimestamp }; }"
     },
     {
       "step": 2,
@@ -32,7 +32,7 @@
       "payload": {
         "url": "${repo_url}",
         "provider": "${git_provider}",
-        "path": "/Users/validation-user/iq-oq-sync-validation-${Date.now()}",
+        "path": "/Repos/iq-oq-sync-validation-${current_timestamp}",
         "branch": "main",
         "sparse_checkout": {
           "patterns": [

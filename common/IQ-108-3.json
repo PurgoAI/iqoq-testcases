@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; const currentTimestamp = Date.now(); return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath, current_timestamp: currentTimestamp }; }"
     },
     {
       "step": 2,
@@ -32,7 +32,7 @@
       "payload": {
         "url": "${repo_url}",
         "provider": "${git_provider}",
-        "path": "/Users/validation-user/iq-oq-access-control-${Date.now()}",
+        "path": "/Repos/iq-oq-access-control-${current_timestamp}",
         "branch": "main"
       },
       "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const repoId = responseData?.id || currentVariables.repo_id; const repoPath = responseData?.path || currentVariables.repo_path; const isCreated = statusCode === 200 && repoId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists || currentVariables.repo_exists; return { ...currentVariables, repo_id: repoId, repo_path: repoPath, repo_created: isCreated, repo_already_exists: alreadyExists, repo_operation_success: success }; }"
