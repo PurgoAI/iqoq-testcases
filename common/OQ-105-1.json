@@ -1,6 +1,6 @@
 {
   "title": "Authorization Listing - Negative",
-  "test_description": "Authorization Listing - Negative: Test that user2 cannot access table without permissions. Access should fail with permission error.",
+  "test_description": "Authorization Listing - Negative: Test that user2 cannot access table without permissions and cleanup existing permissions for TEMP_GROUP_OQ105.",
   "version": "2.0",
   "test_code": "OQ-105-1",
   "test_seq": 1,
@@ -18,10 +18,10 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "REVOKE ALL PRIVILEGES ON TABLE ${catalog_name}.silver.sdtm_dm FROM TEMP_GROUP_OQ104",
+        "statement": "REVOKE ALL PRIVILEGES ON TABLE ${catalog_name}.silver.sdtm_dm FROM TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { await delay(3000); logger.debug('Cleaned up existing permissions'); return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Cleanup existing permissions result:', success); return { ...currentVariables, cleanup_success: success }; }"
     },
     {
       "step": 2,
@@ -40,6 +40,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const accessStep = stepResults.test_unauthorized_access; const expected_result = 'Result: Access denied with permission error'; let actual_result = 'Authorization test not completed'; if (!accessStep || !accessStep.data) { return { status: 'fail', message: 'No response received from authorization test', code: 'AUTH_NEGATIVE_NO_RESPONSE', test_id: 'OQ-105-1', title: 'Authorization Listing - Negative', expected_result, actual_result: 'No response from authorization test.' }; } const isPermissionError = variables.is_permission_error; const errorMessage = variables.error_message || ''; if (isPermissionError) { actual_result = 'Access denied: ' + errorMessage; return { status: 'pass', message: 'Authorization validation passed: User2 access properly denied to ' + variables.catalog_name + '.silver.sdtm_dm', code: 'AUTH_NEGATIVE_PASSED', test_id: 'OQ-105-1', title: 'Authorization Listing - Negative', expected_result, actual_result }; } else if (accessStep.data.status && accessStep.data.status.state === 'SUCCEEDED') { actual_result = 'Access granted (should have failed).'; return { status: 'fail', message: 'Authorization validation failed: User2 access was not denied to ' + variables.catalog_name + '.silver.sdtm_dm', code: 'AUTH_NEGATIVE_FAILED', test_id: 'OQ-105-1', title: 'Authorization Listing - Negative', expected_result, actual_result }; } else { actual_result = 'Query failed but not due to permission error: ' + errorMessage; return { status: 'fail', message: 'Query failed but not due to permission error: ' + errorMessage, code: 'AUTH_NEGATIVE_UNEXPECTED_ERROR', test_id: 'OQ-105-1', title: 'Authorization Listing - Negative', expected_result, actual_result }; } }",
-  "manual_procedure": "Clean up existing permissions and test that user2 cannot access table without permissions. Access should fail with permission error."
+  "parser_code": "function aggregateResults(stepResults) { const cleanupStep = stepResults.cleanup_existing_permissions; const accessStep = stepResults.test_unauthorized_access; const expected_result = 'Result: Access denied with permission error'; let actual_result = 'Authorization test not completed'; if (cleanupStep && cleanupStep.data && cleanupStep.data.status && cleanupStep.data.status.state !== 'SUCCEEDED') { logger.debug('Cleanup step failed, but continuing with test'); } const isPermissionError = variables.is_permission_error; const errorMessage = variables.error_message || ''; if (isPermissionError) { actual_result = 'Access denied: ' + errorMessage; return { status: 'pass', message: 'Authorization validation passed: User2 cannot access table without permissions', code: 'AUTH_LISTING_NEGATIVE_PASSED', test_id: 'OQ-105-1', title: 'Authorization Listing - Negative', expected_result, actual_result }; } else if (accessStep.data.status && accessStep.data.status.state === 'SUCCEEDED') { actual_result = 'Access granted (should have failed).'; return { status: 'fail', message: 'Authorization validation failed: User2 can access table without permissions', code: 'AUTH_LISTING_NEGATIVE_FAILED', test_id: 'OQ-105-1', title: 'Authorization Listing - Negative', expected_result, actual_result }; } else { actual_result = 'Query failed but not due to permission error: ' + errorMessage; return { status: 'fail', message: 'Query failed but not due to permission error: ' + errorMessage, code: 'AUTH_LISTING_NEGATIVE_UNEXPECTED_ERROR', test_id: 'OQ-105-1', title: 'Authorization Listing - Negative', expected_result, actual_result }; } }",
+  "manual_procedure": "Clean up existing permissions for TEMP_GROUP_OQ105 and test that user2 cannot access the table without permissions."
 } 
