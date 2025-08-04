@@ -58,7 +58,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "url": "${git_repo_url}",
+        "url": "${repo_url}",
         "provider": "github",
         "path": "/Users/${user_name}/iq-oq-access-test-${current_timestamp}",
         "branch": "main"
