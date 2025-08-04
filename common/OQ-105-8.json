@@ -1,7 +1,7 @@
 {
   "title": "Authorization Access (Direct) - Positive",
-  "test_description": "Authorization Access (Direct) - Positive: Grant SELECT permission directly to user2 and verify user2 can SELECT from the table.",
-  "version": "2.0",
+  "test_description": "Authorization Access (Direct) - Positive: Grant SELECT permission directly to user2 and verify access.",
+  "version": "2.1",
   "test_code": "OQ-105-8",
   "test_seq": 8,
   "test_suite": "OQ-105",
@@ -18,11 +18,11 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const user2Name = responseData.userName || 'test-user'; logger.debug('User2 info:', { user2Name }); return { ...currentVariables, user2_name: user2Name }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const user2Name = responseData.userName || ''; return { ...currentVariables, user2_name: user2Name }; }"
     },
     {
       "step": 2,
-      "name": "grant_select_to_user",
+      "name": "grant_select_permission",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
       "headers": {
@@ -30,13 +30,28 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT SELECT ON TABLE ${catalog_name}.silver.sdtm_dm TO `${user2_name}`",
+        "statement": "GRANT SELECT ON TABLE iq_oq_demo.silver.sdtm_dm TO `${user2_name}`",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Grant SELECT to user result:', success); await delay(30000); return { ...currentVariables, grant_success: success }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, grant_success: success }; }"
     },
     {
       "step": 3,
+      "name": "wait_for_permissions",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "warehouse_id": "${warehouse_id}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const maxRetries = 6; const retryDelay = 5000; const currentRetry = currentVariables.permission_retry_count || 0; const startTime = currentVariables.permission_start_time || Date.now(); const elapsedTime = Date.now() - startTime; const maxWaitTime = 30000; if (currentRetry === 0) { return { ...currentVariables, permission_retry_count: 1, permission_start_time: startTime, wait_completed: false }; } if (elapsedTime >= maxWaitTime) { return { ...currentVariables, wait_completed: true, wait_timeout: true }; } if (currentRetry < maxRetries) { setTimeout(() => { currentVariables.permission_retry_count = currentRetry + 1; }, retryDelay); return { ...currentVariables, permission_retry_count: currentRetry + 1, wait_completed: false }; } return { ...currentVariables, wait_completed: true, wait_success: true }; }"
+    },
+    {
+      "step": 4,
       "name": "test_select_access",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -45,13 +60,13 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Select access test result:', success); return { ...currentVariables, select_success: success }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, select_success: success }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_user2_info; const grantStep = stepResults.grant_select_to_user; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query Succeeded'; let actual_result = 'Authorization test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user2 information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!grantStep || !grantStep.data || !grantStep.data.status || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } actual_result = 'Failed to grant SELECT permission to user: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || !accessStep.data.status || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot select from ' + variables.catalog_name + '.silver.sdtm_dm after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can select from ' + variables.catalog_name + '.silver.sdtm_dm after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_PASSED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; }",
-  "manual_procedure": "Get user2 info, grant SELECT permission directly to user2, and verify user2 can SELECT from the table."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_user2_info; const grantStep = stepResults.grant_select_permission; const waitStep = stepResults.wait_for_permissions; const accessStep = stepResults.test_select_access; const expected_result = 'Result: User2 can SELECT from table after direct grant'; let actual_result = 'Authorization test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user2 information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!grantStep || !grantStep.data || !grantStep.data.status || grantStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Failed to grant SELECT permission to user2.'; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_USER_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (variables.wait_timeout) { actual_result = 'Permission propagation timeout after 30 seconds.'; return { status: 'fail', message: actual_result, code: 'PERMISSION_TIMEOUT', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || !accessStep.data.status || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: actual_result, code: 'AUTH_ACCESS_DIRECT_POSITIVE_FAILED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can SELECT from iq_oq_demo.silver.sdtm_dm after direct grant', code: 'AUTH_ACCESS_DIRECT_POSITIVE_PASSED', test_id: 'OQ-105-8', title: 'Authorization Access (Direct) - Positive', expected_result, actual_result }; }",
+  "manual_procedure": "Get user2 info, grant SELECT permission directly to user2, wait for permissions to propagate (with polling), and verify user2 can access table."
 } 

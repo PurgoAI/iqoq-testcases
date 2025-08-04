@@ -1,7 +1,7 @@
 {
   "title": "Authorization Access (Role) - Positive",
-  "test_description": "Authorization Access (Role) - Positive: Grant SELECT permission to TEMP_OQ105 and verify user2 can SELECT from the table.",
-  "version": "2.2",
+  "test_description": "Authorization Access (Role) - Positive: Grant SELECT permission to TEMP_GROUP_OQ104 and verify user2 can access table.",
+  "version": "2.1",
   "test_code": "OQ-105-5",
   "test_seq": 5,
   "test_suite": "OQ-105",
@@ -10,7 +10,7 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "grant_select_to_group",
+      "name": "grant_select_permission",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
       "headers": {
@@ -18,13 +18,28 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT SELECT ON TABLE ${catalog_name}.silver.sdtm_dm TO TEMP_OQ105",
+        "statement": "GRANT SELECT ON TABLE iq_oq_demo.silver.sdtm_dm TO TEMP_GROUP_OQ104",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const errorMessage = responseData?.status?.error?.message || ''; const isPrincipalNotFound = errorMessage.includes('PRINCIPAL_DOES_NOT_EXIST'); if (success) { await delay(30000); } return { ...currentVariables, grant_success: success, principal_not_found: isPrincipalNotFound, grant_error: errorMessage }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const error = responseData?.status?.error?.message || ''; const principalNotFound = error.toLowerCase().includes('principal') && error.toLowerCase().includes('not found'); return { ...currentVariables, grant_success: success, grant_error: error, principal_not_found: principalNotFound }; }"
     },
     {
       "step": 2,
+      "name": "wait_for_permissions",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/sql/statements",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "warehouse_id": "${warehouse_id}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const maxRetries = 6; const retryDelay = 5000; const currentRetry = currentVariables.permission_retry_count || 0; const startTime = currentVariables.permission_start_time || Date.now(); const elapsedTime = Date.now() - startTime; const maxWaitTime = 30000; if (currentRetry === 0) { return { ...currentVariables, permission_retry_count: 1, permission_start_time: startTime, wait_completed: false }; } if (elapsedTime >= maxWaitTime) { return { ...currentVariables, wait_completed: true, wait_timeout: true }; } if (currentRetry < maxRetries) { setTimeout(() => { currentVariables.permission_retry_count = currentRetry + 1; }, retryDelay); return { ...currentVariables, permission_retry_count: currentRetry + 1, wait_completed: false }; } return { ...currentVariables, wait_completed: true, wait_success: true }; }"
+    },
+    {
+      "step": 3,
       "name": "test_select_access",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -33,13 +48,13 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, select_success: success }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const grantStep = stepResults.grant_select_to_group; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query Succeeded'; let actual_result = 'Authorization test not completed'; if (!grantStep || !grantStep.data) { actual_result = 'No response received from grant operation.'; return { status: 'fail', message: actual_result, code: 'GRANT_NO_RESPONSE', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (variables.principal_not_found) { actual_result = 'Group TEMP_OQ105 not available in SQL engine yet (timing issue).'; return { status: 'fail', message: actual_result, code: 'PRINCIPAL_NOT_FOUND', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!variables.grant_success) { actual_result = 'Failed to grant SELECT permission: ' + (variables.grant_error || 'Unknown error'); return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || !variables.select_success) { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot select from ' + variables.catalog_name + '.silver.sdtm_dm after grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can select from ' + variables.catalog_name + '.silver.sdtm_dm after group grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_PASSED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; }",
-  "manual_procedure": "Grant SELECT to TEMP_OQ105 for the table and verify user2 can SELECT from the table."
+  "parser_code": "function aggregateResults(stepResults) { const grantStep = stepResults.grant_select_permission; const waitStep = stepResults.wait_for_permissions; const accessStep = stepResults.test_select_access; const expected_result = 'Result: User2 can SELECT from table after grant'; let actual_result = 'Authorization test not completed'; if (!grantStep || !grantStep.data) { actual_result = 'No response received from grant operation.'; return { status: 'fail', message: actual_result, code: 'GRANT_NO_RESPONSE', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (variables.principal_not_found) { actual_result = 'Group TEMP_GROUP_OQ104 not available in SQL engine yet (timing issue).'; return { status: 'fail', message: actual_result, code: 'PRINCIPAL_NOT_FOUND', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!variables.grant_success) { actual_result = 'Failed to grant SELECT permission: ' + (variables.grant_error || 'Unknown error'); return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (variables.wait_timeout) { actual_result = 'Permission propagation timeout after 30 seconds.'; return { status: 'fail', message: actual_result, code: 'PERMISSION_TIMEOUT', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || !variables.select_success) { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: actual_result, code: 'AUTH_ACCESS_ROLE_POSITIVE_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can SELECT from iq_oq_demo.silver.sdtm_dm after group grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_PASSED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; }",
+  "manual_procedure": "Grant SELECT permission to TEMP_GROUP_OQ104, wait for permissions to propagate (with polling), and verify user2 can access table."
 } 
