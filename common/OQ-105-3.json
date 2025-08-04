@@ -60,7 +60,7 @@
           }
         ]
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData && responseData.id; if (success) { await delay(10000); } return { ...currentVariables, add_user_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData && responseData.id; if (success) { await delay(60000); } return { ...currentVariables, add_user_success: success }; }"
     },
     {
       "step": 4,
@@ -75,7 +75,7 @@
         "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; if (success) { await delay(5000); } return { ...currentVariables, catalog_grant_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; if (success) { await delay(30000); } return { ...currentVariables, catalog_grant_success: success }; }"
     },
     {
       "step": 5,
@@ -90,7 +90,7 @@
         "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; if (success) { await delay(5000); } return { ...currentVariables, schema_grant_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; if (success) { await delay(30000); } return { ...currentVariables, schema_grant_success: success }; }"
     },
     {
       "step": 6,

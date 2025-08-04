@@ -33,7 +33,7 @@
         "statement": "REVOKE SELECT ON TABLE ${catalog_name}.silver.sdtm_dm FROM `${user2_name}`",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Revoke SELECT from user result:', success); await delay(5000); return { ...currentVariables, revoke_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Revoke SELECT from user result:', success); await delay(30000); return { ...currentVariables, revoke_success: success }; }"
     },
     {
       "step": 3,

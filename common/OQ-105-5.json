@@ -21,7 +21,7 @@
         "statement": "GRANT SELECT ON TABLE ${catalog_name}.silver.sdtm_dm TO TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const errorMessage = responseData?.status?.error?.message || ''; const isPrincipalNotFound = errorMessage.includes('PRINCIPAL_DOES_NOT_EXIST'); if (success) { await delay(5000); } return { ...currentVariables, grant_success: success, principal_not_found: isPrincipalNotFound, grant_error: errorMessage }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const errorMessage = responseData?.status?.error?.message || ''; const isPrincipalNotFound = errorMessage.includes('PRINCIPAL_DOES_NOT_EXIST'); if (success) { await delay(30000); } return { ...currentVariables, grant_success: success, principal_not_found: isPrincipalNotFound, grant_error: errorMessage }; }"
     },
     {
       "step": 2,
