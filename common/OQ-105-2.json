@@ -1,7 +1,7 @@
 {
   "title": "Authorization - Create Group",
   "test_description": "Authorization - Create Group: Create a temporary group called TEMP_GROUP_OQ104 for testing authorization if it doesn't exist.",
-  "version": "1.0",
+  "version": "2.0",
   "test_code": "OQ-105-2",
   "test_seq": 2,
   "test_suite": "OQ-105",
@@ -10,18 +10,6 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "get_user2_info",
-      "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
-      "headers": {
-        "Authorization": "Bearer ${token2}",
-        "Content-Type": "application/json"
-      },
-      "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const user2Id = responseData.id; const user2Name = responseData.displayName; return { ...currentVariables, user2_id: user2Id, user2_name: user2Name }; }"
-    },
-    {
-      "step": 2,
       "name": "check_existing_group",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
@@ -32,7 +20,19 @@
       "payload": {
         "filter": "displayName eq \"TEMP_GROUP_OQ104\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { let groupId = null; let groupExists = false; if (responseData && responseData.Resources && responseData.Resources.length > 0) { groupId = responseData.Resources[0].id; groupExists = true; } return { ...currentVariables, group_id: groupId, group_exists: groupExists }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { let groupId = null; let groupExists = false; if (responseData && responseData.Resources && responseData.Resources.length > 0) { groupId = responseData.Resources[0].id; groupExists = true; logger.debug('Found existing group:', { groupId, groupExists }); } return { ...currentVariables, group_id: groupId, group_exists: groupExists }; }"
+    },
+    {
+      "step": 2,
+      "name": "delete_existing_group",
+      "method": "DELETE",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "async function processStep(responseData, currentVariables) { if (currentVariables.group_exists) { logger.debug('Deleted existing group for clean test'); await delay(2000); } return currentVariables; }"
     },
     {
       "step": 3,
@@ -45,19 +45,13 @@
       },
       "payload": {
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-        "displayName": "TEMP_GROUP_OQ104",
-        "members": [
-          {
-            "value": "${user2_id}",
-            "display": "${user2_name}"
-          }
-        ]
+        "displayName": "TEMP_GROUP_OQ104"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { if (currentVariables.group_exists) { logger.debug('Group already exists, skipping creation'); return currentVariables; } await delay(10000); logger.debug('Waited 10s after group creation for propagation'); const groupId = responseData.id || currentVariables.group_id; return { ...currentVariables, group_id: groupId }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const groupId = responseData?.id || null; logger.debug('Group creation result:', { groupId, status: responseData ? 'success' : 'failed' }); await delay(2000); return { ...currentVariables, new_group_id: groupId }; }"
     },
     {
       "step": 4,
-      "name": "get_group_id",
+      "name": "verify_group_created",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
       "headers": {
@@ -67,10 +61,10 @@
       "payload": {
         "filter": "displayName eq \"TEMP_GROUP_OQ104\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { let groupId = null; if (responseData && responseData.Resources && responseData.Resources.length > 0) { groupId = responseData.Resources[0].id; } return { ...currentVariables, group_id: groupId }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { let groupId = null; let groupFound = false; if (responseData && responseData.Resources && responseData.Resources.length > 0) { groupId = responseData.Resources[0].id; groupFound = true; logger.debug('Group verification result:', { groupId, groupFound }); } if (!groupFound) { await delay(2000); } return { ...currentVariables, verified_group_id: groupId, group_verified: groupFound }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const getUserStep = stepResults.get_user2_info; const checkStep = stepResults.check_existing_group; const createStep = stepResults.create_group; const getGroupStep = stepResults.get_group_id; let groupExists = false; let groupId = null; const expected_result = 'Result: Group Created or Already Exists'; let actual_result = ''; if (!getUserStep || getUserStep.status !== 200 || !getUserStep.data || !getUserStep.data.id) { actual_result = 'Failed to get user2 information'; return { status: 'fail', message: 'Failed to get user2 information', code: 'USER_INFO_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (checkStep && checkStep.status === 200 && checkStep.data && checkStep.data.Resources) { const resources = checkStep.data.Resources; if (resources.length > 0) { groupExists = true; groupId = resources[0].id; actual_result = 'Group already existed: TEMP_GROUP_OQ104 (ID: ' + groupId + ')'; return { status: 'pass', message: 'Group already exists: TEMP_GROUP_OQ104 (ID: ' + groupId + ')', code: 'GROUP_EXISTS', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } } if (!getGroupStep || getGroupStep.status !== 200 || !getGroupStep.data || !getGroupStep.data.Resources || getGroupStep.data.Resources.length === 0) { actual_result = 'Failed to get group ID'; return { status: 'fail', message: 'Failed to get group ID', code: 'GROUP_ID_NOT_FOUND', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (createStep && createStep.status === 201 && createStep.data && createStep.data.id) { groupId = createStep.data.id; actual_result = 'Group created: TEMP_GROUP_OQ104 (ID: ' + groupId + ')'; return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + groupId + ')', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else if (createStep && createStep.status === 409) { actual_result = 'Group already existed: TEMP_GROUP_OQ104'; return { status: 'pass', message: 'Group already exists: TEMP_GROUP_OQ104', code: 'GROUP_EXISTS', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else { let errorMsg = 'Unknown error'; if (createStep && createStep.data && createStep.data.detail) { errorMsg = createStep.data.detail; } else if (createStep && createStep.data && createStep.data.message) { errorMsg = createStep.data.message; } actual_result = 'Failed to create group: ' + errorMsg; return { status: 'fail', message: 'Failed to create group: ' + errorMsg, code: 'GROUP_CREATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } }",
-  "manual_procedure": "Check if group TEMP_<ORG>_OQ104 exists, create it if it doesn't"
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const deleteStep = stepResults.delete_existing_group; const createStep = stepResults.create_group; const verifyStep = stepResults.verify_group_created; const expected_result = 'Result: Group Created Successfully'; let actual_result = 'Group creation not completed'; if (!checkStep || checkStep.status !== 200) { actual_result = 'Failed to check existing group'; return { status: 'fail', message: 'Failed to check existing group', code: 'GROUP_CHECK_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } const groupExists = variables.group_exists; const newGroupId = variables.new_group_id; const verifiedGroupId = variables.verified_group_id; const groupVerified = variables.group_verified; if (groupExists && deleteStep && deleteStep.status >= 200 && deleteStep.status < 300) { actual_result = 'Existing group deleted successfully'; } if (createStep && createStep.status === 201 && newGroupId) { actual_result = 'Group created: TEMP_GROUP_OQ104 (ID: ' + newGroupId + ')'; } else if (createStep && createStep.status === 409) { actual_result = 'Group already existed: TEMP_GROUP_OQ104'; } else { let errorMsg = 'Unknown error'; if (createStep && createStep.data && createStep.data.detail) { errorMsg = createStep.data.detail; } else if (createStep && createStep.data && createStep.data.message) { errorMsg = createStep.data.message; } actual_result = 'Failed to create group: ' + errorMsg; return { status: 'fail', message: 'Failed to create group: ' + errorMsg, code: 'GROUP_CREATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (groupVerified && verifiedGroupId) { actual_result = 'Group verified: TEMP_GROUP_OQ104 (ID: ' + verifiedGroupId + ')'; return { status: 'pass', message: 'Group created successfully: TEMP_GROUP_OQ104 (ID: ' + verifiedGroupId + ')', code: 'GROUP_CREATION_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else { actual_result = 'Group creation succeeded but verification failed'; return { status: 'fail', message: 'Group creation succeeded but verification failed', code: 'GROUP_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } }",
+  "manual_procedure": "Check if group TEMP_GROUP_OQ104 exists, delete it if it does, then create a new one for clean testing."
 } 

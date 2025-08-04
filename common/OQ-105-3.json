@@ -1,7 +1,7 @@
 {
   "title": "Authorization Listing - Positive",
-  "test_description": "Authorization Listing - Positive: Grant USE CATALOG, BROWSE, and USE SCHEMA permissions to TEMP_GROUP_OQ104 and verify user2 can list tables in the schema.",
-  "version": "1.0",
+  "test_description": "Authorization Listing - Positive: Grant USE CATALOG and USE SCHEMA permissions to TEMP_GROUP_OQ104, add user2 to group, and verify user2 can list tables in the schema.",
+  "version": "2.0",
   "test_code": "OQ-105-3",
   "test_seq": 3,
   "test_suite": "OQ-105",
@@ -10,6 +10,58 @@
   "api_calls": [
     {
       "step": 1,
+      "name": "get_user2_info",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
+      "headers": {
+        "Authorization": "Bearer ${token2}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const user2Id = responseData.id; const user2Name = responseData.userName; logger.debug('User2 info:', { user2Id, user2Name }); return { ...currentVariables, user2_id: user2Id, user2_name: user2Name }; }"
+    },
+    {
+      "step": 2,
+      "name": "get_group_id",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "filter": "displayName eq \"TEMP_GROUP_OQ104\""
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { let groupId = null; if (responseData && responseData.Resources && responseData.Resources.length > 0) { groupId = responseData.Resources[0].id; logger.debug('Found group ID:', groupId); } if (!groupId) { await delay(2000); } return { ...currentVariables, group_id: groupId }; }"
+    },
+    {
+      "step": 3,
+      "name": "add_user_to_group",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations": [
+          {
+            "op": "add",
+            "value": {
+              "members": [
+                {
+                  "value": "${user2_id}"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { logger.debug('Added user2 to group'); await delay(3000); return currentVariables; }"
+    },
+    {
+      "step": 4,
       "name": "grant_catalog_permissions",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -18,14 +70,13 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE CATALOG, BROWSE ON CATALOG ${catalog_name} TO TEMP_GROUP_OQ104",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
+        "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_GROUP_OQ104",
+        "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { await delay(20000); logger.debug('Waited 15s after granting catalog permissions'); return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Catalog permissions granted:', success); await delay(3000); return { ...currentVariables, catalog_permissions_granted: success }; }"
     },
     {
-      "step": 2,
+      "step": 5,
       "name": "grant_schema_permissions",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -35,13 +86,12 @@
       },
       "payload": {
         "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_GROUP_OQ104",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
+        "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { await delay(20000); logger.debug('Waited 15s after granting schema permissions'); return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Schema permissions granted:', success); await delay(3000); return { ...currentVariables, schema_permissions_granted: success }; }"
     },
     {
-      "step": 3,
+      "step": 6,
       "name": "test_list_tables",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/sql/statements",
@@ -51,13 +101,12 @@
       },
       "payload": {
         "statement": "SHOW TABLES IN ${catalog_name}.silver",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
+        "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const tables = []; if (success && responseData?.result?.data_array) { responseData.result.data_array.forEach(row => { if (row && row.length > 0) { tables.push(row[0]); } }); } logger.debug('List tables result:', { success, tableCount: tables.length }); return { ...currentVariables, list_tables_success: success, tables: tables, table_count: tables.length }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const grantCatalogStep = stepResults.grant_catalog_permissions; const grantSchemaStep = stepResults.grant_schema_permissions; const listTablesStep = stepResults.test_list_tables; const expected_result = 'Result: Listing Succeeded for granted objects'; let actual_result = ''; if (!grantCatalogStep || !grantCatalogStep.data || grantCatalogStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantCatalogStep && grantCatalogStep.data && grantCatalogStep.data.status && grantCatalogStep.data.status.error) { errorMsg = grantCatalogStep.data.status.error.message || grantCatalogStep.data.status.error; } actual_result = 'Failed to grant USE CATALOG and BROWSE permissions: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_CATALOG_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!grantSchemaStep || !grantSchemaStep.data || grantSchemaStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantSchemaStep && grantSchemaStep.data && grantSchemaStep.data.status && grantSchemaStep.data.status.error) { errorMsg = grantSchemaStep.data.status.error.message || grantSchemaStep.data.status.error; } actual_result = 'Failed to grant USE SCHEMA permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SCHEMA_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!listTablesStep || !listTablesStep.data || listTablesStep.data.status.state !== 'SUCCEEDED') { actual_result = 'User2 cannot list tables in the schema.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot list tables in the schema', code: 'AUTH_LISTING_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } let tableCount = 0; let tables = []; if (listTablesStep.data && listTablesStep.data.result && listTablesStep.data.result.data_array) { const dataArray = listTablesStep.data.result.data_array; tableCount = dataArray.length; tables = dataArray.map(function(row) { return row[1] || ''; }); } actual_result = 'User2 can list ' + tableCount + ' tables in the schema: ' + tables.join(', '); return { status: 'pass', message: 'Authorization validation passed: User2 can list ' + tableCount + ' tables in the schema', code: 'AUTH_LISTING_PASSED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; }",
-  "manual_procedure": "Grant USE CATALOG, BROWSE, and USE SCHEMA to group TEMP_<ORG>_OQ104 and verify user can list tables in the schema."
+  "parser_code": "function aggregateResults(stepResults) { const getUserStep = stepResults.get_user2_info; const getGroupStep = stepResults.get_group_id; const addUserStep = stepResults.add_user_to_group; const grantCatalogStep = stepResults.grant_catalog_permissions; const grantSchemaStep = stepResults.grant_schema_permissions; const listTablesStep = stepResults.test_list_tables; const expected_result = 'Result: Listing Succeeded for granted objects'; let actual_result = 'Authorization test not completed'; if (!getUserStep || getUserStep.status !== 200 || !getUserStep.data || !getUserStep.data.id) { actual_result = 'Failed to get user2 information'; return { status: 'fail', message: 'Failed to get user2 information', code: 'USER_INFO_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!getGroupStep || getGroupStep.status !== 200 || !variables.group_id) { actual_result = 'Failed to get group ID'; return { status: 'fail', message: 'Failed to get group ID', code: 'GROUP_ID_NOT_FOUND', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!addUserStep || addUserStep.status < 200 || addUserStep.status >= 300) { actual_result = 'Failed to add user2 to group'; return { status: 'fail', message: 'Failed to add user2 to group', code: 'ADD_USER_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!grantCatalogStep || !grantCatalogStep.data || grantCatalogStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantCatalogStep && grantCatalogStep.data && grantCatalogStep.data.status && grantCatalogStep.data.status.error) { errorMsg = grantCatalogStep.data.status.error.message || grantCatalogStep.data.status.error; } actual_result = 'Failed to grant USE CATALOG permissions: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_CATALOG_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!grantSchemaStep || !grantSchemaStep.data || grantSchemaStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantSchemaStep && grantSchemaStep.data && grantSchemaStep.data.status && grantSchemaStep.data.status.error) { errorMsg = grantSchemaStep.data.status.error.message || grantSchemaStep.data.status.error; } actual_result = 'Failed to grant USE SCHEMA permissions: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SCHEMA_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!listTablesStep || !listTablesStep.data || listTablesStep.data.status.state !== 'SUCCEEDED') { actual_result = 'User2 cannot list tables in the schema.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot list tables in the schema', code: 'AUTH_LISTING_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } const tableCount = variables.table_count || 0; const tables = variables.tables || []; actual_result = 'User2 can list ' + tableCount + ' tables in the schema: ' + tables.join(', '); return { status: 'pass', message: 'Authorization validation passed: User2 can list ' + tableCount + ' tables in the schema', code: 'AUTH_LISTING_PASSED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; }",
+  "manual_procedure": "Get user2 info, get group ID, add user2 to group, grant USE CATALOG and USE SCHEMA permissions to group, and verify user2 can list tables in the schema."
 } 

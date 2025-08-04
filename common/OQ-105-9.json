@@ -1,7 +1,7 @@
 {
   "title": "Authorization Access (Direct) - Revoke",
   "test_description": "Authorization Access (Direct) - Revoke: Revoke SELECT permission directly from user2 and verify user2 can no longer SELECT from the table.",
-  "version": "1.0",
+  "version": "2.0",
   "test_code": "OQ-105-9",
   "test_seq": 9,
   "test_suite": "OQ-105",
@@ -10,7 +10,7 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "get_current_user",
+      "name": "get_user2_info",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
       "headers": {
@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const userEmail = responseData.userName || responseData.emails?.[0]?.value || 'test-user@purgo.ai'; return { ...currentVariables, target_user_email: userEmail }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const user2Name = responseData.userName || 'test-user'; logger.debug('User2 info:', { user2Name }); return { ...currentVariables, user2_name: user2Name }; }"
     },
     {
       "step": 2,
@@ -30,11 +30,10 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "REVOKE SELECT ON TABLE ${catalog_name}.gold.patient_summary FROM `${target_user_email}`",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
+        "statement": "REVOKE SELECT ON TABLE ${catalog_name}.silver.sdtm_dm FROM `${user2_name}`",
+        "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { await delay(5000); logger.debug('Waited 5s after revoking SELECT permission'); return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Revoke SELECT from user result:', success); await delay(3000); return { ...currentVariables, revoke_success: success }; }"
     },
     {
       "step": 3,
@@ -46,14 +45,13 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM ${catalog_name}.gold.patient_summary LIMIT 5",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
+        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
+        "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const statusCode = responseData?.status?.state || 'UNKNOWN'; const errorMessage = responseData?.status?.error?.message || ''; const sqlState = responseData?.status?.sql_state || ''; const isPermissionError = statusCode === 'FAILED' && (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('privileges') || errorMessage.toLowerCase().includes('access') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('forbidden') || errorMessage.toLowerCase().includes('insufficient') || errorMessage.toLowerCase().includes('permission_denied') || errorMessage.toLowerCase().includes('insufficient_permissions') || sqlState === '42501' || sqlState === '42000'); logger.debug('Permission error check after revoke:', { statusCode, errorMessage, sqlState, isPermissionError }); return { ...currentVariables, is_permission_error: isPermissionError, error_message: errorMessage, sql_state: sqlState }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const revokeStep = stepResults.revoke_select_from_user; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query Failed'; let actual_result = ''; if (!revokeStep || !revokeStep.data || revokeStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (revokeStep && revokeStep.data && revokeStep.data.status && revokeStep.data.status.error) { errorMsg = revokeStep.data.status.error.message || revokeStep.data.status.error; } actual_result = 'Failed to revoke SELECT permission from user: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'REVOKE_SELECT_USER_FAILED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; } const data = accessStep.data; let accessDenied = false; if (data && data.status && data.status.state === 'FAILED') { const errorMsg = data.status.error ? data.status.error.message : ''; if (errorMsg && (errorMsg.indexOf('permission') !== -1 || errorMsg.indexOf('Permission') !== -1 || errorMsg.indexOf('PERMISSION') !== -1 || errorMsg.indexOf('access') !== -1 || errorMsg.indexOf('Access') !== -1 || errorMsg.indexOf('ACCESS') !== -1 || errorMsg.indexOf('denied') !== -1 || errorMsg.indexOf('Denied') !== -1 || errorMsg.indexOf('DENIED') !== -1 || errorMsg.indexOf('Forbidden') !== -1 || errorMsg.indexOf('FORBIDDEN') !== -1 || errorMsg.indexOf('forbidden') !== -1)) { actual_result = 'Access denied: ' + errorMsg; accessDenied = true; } else { actual_result = 'Query failed: ' + errorMsg; } } else { actual_result = 'Query did not fail as expected.'; } if (!accessDenied) { return { status: 'fail', message: 'Authorization validation failed: User2 SELECT access was not revoked directly', code: 'AUTH_ACCESS_DIRECT_REVOKE_FAILED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; } return { status: 'pass', message: 'Authorization validation passed: User2 SELECT access properly denied after direct revoke', code: 'AUTH_ACCESS_DIRECT_REVOKE_PASSED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; }",
-  "manual_procedure": "Revoke SELECT from user for <catalog name>.<schema name>.<table name2>. While logged into the user account, In SQL Editor write a select query for <catalog name>.<schema name>.<table name2> and run."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_user2_info; const revokeStep = stepResults.revoke_select_from_user; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Access denied with permission error'; let actual_result = 'Authorization test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user2 information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; } if (!revokeStep || !revokeStep.data || revokeStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (revokeStep && revokeStep.data && revokeStep.data.status && revokeStep.data.status.error) { errorMsg = revokeStep.data.status.error.message || revokeStep.data.status.error; } actual_result = 'Failed to revoke SELECT permission from user: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'REVOKE_SELECT_USER_FAILED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; } const isPermissionError = variables.is_permission_error; const errorMessage = variables.error_message || ''; if (isPermissionError) { actual_result = 'Access denied: ' + errorMessage; return { status: 'pass', message: 'Authorization validation passed: User2 SELECT access properly denied after direct revoke', code: 'AUTH_ACCESS_DIRECT_REVOKE_PASSED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; } else if (accessStep.data.status && accessStep.data.status.state === 'SUCCEEDED') { actual_result = 'Access granted (should have failed).'; return { status: 'fail', message: 'Authorization validation failed: User2 SELECT access was not revoked directly', code: 'AUTH_ACCESS_DIRECT_REVOKE_FAILED', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; } else { actual_result = 'Query failed but not due to permission error: ' + errorMessage; return { status: 'fail', message: 'Query failed but not due to permission error: ' + errorMessage, code: 'AUTH_ACCESS_DIRECT_REVOKE_UNEXPECTED_ERROR', test_id: 'OQ-105-9', title: 'Authorization Access (Direct) - Revoke', expected_result, actual_result }; } }",
+  "manual_procedure": "Get user2 info, revoke SELECT permission directly from user2, and verify user2 can no longer SELECT from the table."
 } 

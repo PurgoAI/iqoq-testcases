@@ -1,7 +1,7 @@
 {
   "title": "Authorization Access (Role) - Positive",
   "test_description": "Authorization Access (Role) - Positive: Grant SELECT permission to TEMP_GROUP_OQ104 and verify user2 can SELECT from the table.",
-  "version": "1.0",
+  "version": "2.0",
   "test_code": "OQ-105-5",
   "test_seq": 5,
   "test_suite": "OQ-105",
@@ -19,10 +19,9 @@
       },
       "payload": {
         "statement": "GRANT SELECT ON TABLE ${catalog_name}.silver.sdtm_dm TO TEMP_GROUP_OQ104",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
+        "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { await delay(50000); logger.debug('Waited 5s after granting SELECT permission'); return currentVariables; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Grant SELECT to group result:', success); await delay(3000); return { ...currentVariables, grant_success: success }; }"
     },
     {
       "step": 2,
@@ -35,13 +34,12 @@
       },
       "payload": {
         "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
-        "warehouse_id": "${warehouse_id}",
-        "wait_timeout": "30s"
+        "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Select access test result:', success); return { ...currentVariables, select_success: success }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const grantStep = stepResults.grant_select_to_group; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query Succeeded'; let actual_result = ''; if (!grantStep || !grantStep.data || !grantStep.data.status || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } actual_result = 'Failed to grant SELECT permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || !accessStep.data.status || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot select from ' + variables.catalog_name + '.silver.sdtm_dm after grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can select from ' + variables.catalog_name + '.silver.sdtm_dm after group grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_PASSED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; }",
-  "manual_procedure": "Grant SELECT to TEMP_<ORG>_OQ104 for <catalog name>.<schema name>.<table name>. While logged into the user account, In SQL Editor write a select query for <catalog name>.<schema name>.<table name> and run"
+  "parser_code": "function aggregateResults(stepResults) { const grantStep = stepResults.grant_select_to_group; const accessStep = stepResults.test_select_access; const expected_result = 'Result: Query Succeeded'; let actual_result = 'Authorization test not completed'; if (!grantStep || !grantStep.data || !grantStep.data.status || grantStep.data.status.state !== 'SUCCEEDED') { let errorMsg = 'Unknown error'; if (grantStep && grantStep.data && grantStep.data.status && grantStep.data.status.error) { errorMsg = grantStep.data.status.error.message || grantStep.data.status.error; } actual_result = 'Failed to grant SELECT permission: ' + errorMsg; return { status: 'fail', message: actual_result, code: 'GRANT_SELECT_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } if (!accessStep || !accessStep.data || !accessStep.data.status || accessStep.data.status.state !== 'SUCCEEDED') { actual_result = 'Query did not succeed for test user.'; return { status: 'fail', message: 'Authorization validation failed: User2 cannot select from ' + variables.catalog_name + '.silver.sdtm_dm after grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_FAILED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; } actual_result = 'Query succeeded for test user.'; return { status: 'pass', message: 'Authorization validation passed: User2 can select from ' + variables.catalog_name + '.silver.sdtm_dm after group grant', code: 'AUTH_ACCESS_ROLE_POSITIVE_PASSED', test_id: 'OQ-105-5', title: 'Authorization Access (Role) - Positive', expected_result, actual_result }; }",
+  "manual_procedure": "Grant SELECT to TEMP_GROUP_OQ104 for the table and verify user2 can SELECT from the table."
 } 
