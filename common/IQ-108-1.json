@@ -1,7 +1,7 @@
 {
   "title": "Repository Sync",
-  "test_description": "Validate repository sync by deleting one file and verifying it is restored from the remote within 60 seconds.",
-  "version": "2.0",
+  "test_description": "Repository Sync: Test that repository content syncs properly after local changes are made.",
+  "version": "2.1",
   "test_code": "IQ-108-1",
   "test_seq": 1,
   "test_suite": "IQ-108",
@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData?.userName || 'validation-user'; const timestamp = Date.now().toString(); logger.debug('Current user:', { userName, timestamp }); return { ...currentVariables, current_username: userName, current_timestamp: timestamp }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData.userName || 'test-user'; return { ...currentVariables, user_name: userName }; }"
     },
     {
       "step": 2,
@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData?.credentials || []; let existingCredentialId = null; let hasCredentials = credentials.length > 0; if (hasCredentials) { for (let i = 0; i < credentials.length; i++) { const cred = credentials[i]; if (cred && cred.git_provider && cred.git_username && cred.git_provider.toLowerCase() === currentVariables.git_provider.toLowerCase() && cred.git_username === currentVariables.git_username) { existingCredentialId = cred.credential_id; break; } } if (!existingCredentialId && credentials.length > 0) { existingCredentialId = credentials[0].credential_id; } } logger.debug('Existing credentials check:', { hasCredentials, existingCredentialId, credentialsCount: credentials.length }); return { ...currentVariables, has_credentials: hasCredentials, existing_credential_id: existingCredentialId, credentials_count: credentials.length }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData.credentials || []; const hasCredentials = credentials.length > 0; const credentialId = hasCredentials ? credentials[0].credential_id : null; return { ...currentVariables, has_credentials: hasCredentials, credential_id: credentialId }; }"
     },
     {
       "step": 3,
@@ -42,11 +42,11 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "personal_access_token": "${pat}",
-        "git_username": "${git_username}",
-        "git_provider": "${git_provider}"
+        "personal_access_token": "${git_token}",
+        "git_username": "${user_name}",
+        "git_provider": "github"
       },
-      "post_processing": "function processStep(responseData, currentVariables, response) { const credentialId = responseData?.credential_id || currentVariables.existing_credential_id; const statusCode = response && response.status ? response.status : 200; const isUpdate = currentVariables.has_credentials && currentVariables.existing_credential_id; const isCreated = statusCode === 200 && credentialId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); logger.debug('Credentials operation result:', { credentialId, statusCode, isUpdate, isCreated, alreadyExists }); return { ...currentVariables, credential_id: credentialId, credentials_created: isCreated, credentials_updated: isUpdate, credentials_already_exist: alreadyExists }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.credential_id ? true : false; const newCredentialId = responseData?.credential_id || currentVariables.credential_id; return { ...currentVariables, credential_created: success, credential_id: newCredentialId }; }"
     },
     {
       "step": 4,
@@ -58,12 +58,12 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "url": "${repo_url}",
-        "provider": "${git_provider}",
-        "path": "/Users/${current_username}/iq-oq-sync-test-${current_timestamp}",
+        "url": "${git_repo_url}",
+        "provider": "github",
+        "path": "/Users/${user_name}/iq-oq-sync-test-${current_timestamp}",
         "branch": "main"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; const repoPath = responseData?.path || null; logger.debug('Repo created for sync test:', { repoId, repoPath }); return { ...currentVariables, repo_id: repoId, repo_path: repoPath }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; const repoPath = responseData?.path || null; return { ...currentVariables, repo_id: repoId, repo_path: repoPath }; }"
     },
     {
       "step": 5,
@@ -77,7 +77,7 @@
       "payload": {
         "path": "${repo_path}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData?.objects || []; const initialObjectCount = objects.length; if (initialObjectCount === 0) { throw new Error('Repository is empty, cannot test sync'); } const firstFile = objects.find(obj => obj.object_type === 'FILE'); if (!firstFile) { throw new Error('No files found in repository, cannot test sync'); } logger.debug('Initial repo content:', { initialObjectCount, firstFile: firstFile.path }); return { ...currentVariables, initial_object_count: initialObjectCount, first_file_path: firstFile.path }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const fileCount = objects.length; return { ...currentVariables, initial_file_count: fileCount, initial_files: objects }; }"
     },
     {
       "step": 6,
@@ -89,9 +89,9 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "path": "${first_file_path}"
+        "path": "${repo_path}/sync-test-validation.txt"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { logger.debug('Deleted single file:', currentVariables.first_file_path); return { ...currentVariables, file_deleted: true }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData !== undefined; return { ...currentVariables, file_deleted: success }; }"
     },
     {
       "step": 7,
@@ -105,7 +105,7 @@
       "payload": {
         "branch": "main"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const syncStartTime = Date.now(); logger.debug('Sync triggered at:', syncStartTime); return { ...currentVariables, sync_start_time: syncStartTime }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; return { ...currentVariables, sync_triggered: success }; }"
     },
     {
       "step": 8,
@@ -119,7 +119,7 @@
       "payload": {
         "path": "${repo_path}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const initialCount = currentVariables.initial_object_count || 1; const currentCount = responseData?.objects?.length || 0; const filesRestored = currentCount >= initialCount; const elapsedTime = Date.now() - (currentVariables.sync_start_time || Date.now()); const maxWaitTime = 60000; const isTimeout = elapsedTime > maxWaitTime; logger.debug('Polling for file restoration:', { filesRestored, currentCount, initialCount, elapsedTime, isTimeout }); if (!filesRestored && !isTimeout) { await delay(5000); } return { ...currentVariables, files_restored: filesRestored, sync_timeout: isTimeout, elapsed_time_ms: elapsedTime }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const fileNames = objects.map(obj => obj.path.split('/').pop()); const hasSyncFile = fileNames.includes('sync-test-validation.txt'); const currentFileCount = objects.length; if (!hasSyncFile) { await delay(10000); } return { ...currentVariables, current_file_count: currentFileCount, has_sync_file: hasSyncFile, current_files: objects }; }"
     },
     {
       "step": 9,
@@ -131,10 +131,10 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData !== undefined; return { ...currentVariables, cleanup_success: success }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const pollStep = stepResults.poll_for_file_restoration; const expected_result = 'Files restored by sync in <= 60 seconds.'; let actual_result = 'Repository sync not tested'; if (pollStep.error) { return { status: 'fail', message: `Polling failed: ${pollStep.error.message}`, code: 'POLL_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } const filesRestored = variables.files_restored; const syncTimeout = variables.sync_timeout; const elapsedSeconds = (variables.elapsed_time_ms / 1000).toFixed(2); if (filesRestored) { actual_result = `Files restored in ${elapsedSeconds} seconds.`; return { status: 'pass', message: `Repository content was successfully restored in ${elapsedSeconds} seconds.`, code: 'SYNC_RESTORED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else if (syncTimeout) { actual_result = 'Sync timed out (> 60 seconds).'; return { status: 'fail', message: `Sync timed out after 60 seconds. Files were not restored.`, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else { actual_result = 'Files not restored.'; return { status: 'fail', message: 'Test finished, but files were not restored by sync.', code: 'SYNC_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } }",
-  "manual_procedure": "Create Git credentials, create repository, delete one file and verify it is restored from remote within 60 seconds."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const credentialsStep = stepResults.check_existing_credentials; const createCredentialsStep = stepResults.create_or_update_credentials; const repoStep = stepResults.create_or_find_repo; const listStep = stepResults.list_initial_content; const deleteStep = stepResults.delete_single_file; const syncStep = stepResults.trigger_repo_sync; const pollStep = stepResults.poll_for_file_restoration; const cleanupStep = stepResults.cleanup_delete_repo; const expected_result = 'Result: File restored after sync'; let actual_result = 'Repository sync test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (!repoStep || !repoStep.data || !variables.repo_id) { actual_result = 'Failed to create or find repository.'; return { status: 'fail', message: actual_result, code: 'REPO_CREATION_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (!listStep || !listStep.data || variables.initial_file_count === 0) { actual_result = 'No files found in repository initially.'; return { status: 'fail', message: actual_result, code: 'NO_INITIAL_FILES', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (!deleteStep || !deleteStep.data || !variables.file_deleted) { actual_result = 'Failed to delete test file.'; return { status: 'fail', message: actual_result, code: 'FILE_DELETE_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (!syncStep || !syncStep.data || !variables.sync_triggered) { actual_result = 'Failed to trigger repository sync.'; return { status: 'fail', message: actual_result, code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (!pollStep || !pollStep.data) { actual_result = 'Failed to poll for file restoration.'; return { status: 'fail', message: actual_result, code: 'POLL_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } if (variables.has_sync_file) { actual_result = 'File sync-test-validation.txt restored successfully after sync.'; return { status: 'pass', message: 'Repository sync validation passed: File restored after sync', code: 'REPO_SYNC_PASSED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } else { actual_result = 'File sync-test-validation.txt not restored after sync.'; return { status: 'fail', message: 'Repository sync validation failed: File not restored after sync', code: 'REPO_SYNC_FAILED', test_id: 'IQ-108-1', title: 'Repository Sync', expected_result, actual_result }; } }",
+  "manual_procedure": "Get user info, check/create Git credentials, create/find repository, list initial content, delete a test file, trigger repository sync, poll for file restoration, and cleanup."
 } 

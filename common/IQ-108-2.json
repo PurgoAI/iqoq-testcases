@@ -1,7 +1,7 @@
 {
   "title": "Access Control",
-  "test_description": "Validate that Git write operations are blocked by attempting to update the repo's tag after deleting credentials.",
-  "version": "2.0",
+  "test_description": "Access Control: Test that Git write operations are blocked when no valid credentials are present.",
+  "version": "2.1",
   "test_code": "IQ-108-2",
   "test_seq": 2,
   "test_suite": "IQ-108",
@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData?.userName || 'validation-user'; const timestamp = Date.now().toString(); logger.debug('Current user:', { userName, timestamp }); return { ...currentVariables, current_username: userName, current_timestamp: timestamp }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData.userName || 'test-user'; return { ...currentVariables, user_name: userName }; }"
     },
     {
       "step": 2,
@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData?.credentials || []; let existingCredentialId = null; let hasCredentials = credentials.length > 0; if (hasCredentials) { for (let i = 0; i < credentials.length; i++) { const cred = credentials[i]; if (cred && cred.git_provider && cred.git_username && cred.git_provider.toLowerCase() === currentVariables.git_provider.toLowerCase() && cred.git_username === currentVariables.git_username) { existingCredentialId = cred.credential_id; break; } } if (!existingCredentialId && credentials.length > 0) { existingCredentialId = credentials[0].credential_id; } } logger.debug('Existing credentials check:', { hasCredentials, existingCredentialId, credentialsCount: credentials.length }); return { ...currentVariables, has_credentials: hasCredentials, existing_credential_id: existingCredentialId, credentials_count: credentials.length }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData.credentials || []; const hasCredentials = credentials.length > 0; const credentialId = hasCredentials ? credentials[0].credential_id : null; return { ...currentVariables, has_credentials: hasCredentials, credential_id: credentialId }; }"
     },
     {
       "step": 3,
@@ -42,11 +42,11 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "personal_access_token": "${pat}",
-        "git_username": "${git_username}",
-        "git_provider": "${git_provider}"
+        "personal_access_token": "${git_token}",
+        "git_username": "${user_name}",
+        "git_provider": "github"
       },
-      "post_processing": "function processStep(responseData, currentVariables, response) { const credentialId = responseData?.credential_id || currentVariables.existing_credential_id; const statusCode = response && response.status ? response.status : 200; const isUpdate = currentVariables.has_credentials && currentVariables.existing_credential_id; const isCreated = statusCode === 200 && credentialId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); logger.debug('Credentials operation result:', { credentialId, statusCode, isUpdate, isCreated, alreadyExists }); return { ...currentVariables, credential_id: credentialId, credentials_created: isCreated, credentials_updated: isUpdate, credentials_already_exist: alreadyExists }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.credential_id ? true : false; const newCredentialId = responseData?.credential_id || currentVariables.credential_id; return { ...currentVariables, credential_created: success, credential_id: newCredentialId }; }"
     },
     {
       "step": 4,
@@ -58,12 +58,12 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "url": "${repo_url}",
-        "provider": "${git_provider}",
-        "path": "/Users/${current_username}/iq-oq-access-test-${current_timestamp}",
+        "url": "${git_repo_url}",
+        "provider": "github",
+        "path": "/Users/${user_name}/iq-oq-access-test-${current_timestamp}",
         "branch": "main"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; logger.debug('Test repo created:', { repoId }); return { ...currentVariables, repo_id: repoId }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const repoId = responseData?.id || null; const repoPath = responseData?.path || null; return { ...currentVariables, repo_id: repoId, repo_path: repoPath }; }"
     },
     {
       "step": 5,
@@ -75,7 +75,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { logger.debug('Credentials deleted for access control test'); return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData !== undefined; return { ...currentVariables, credentials_deleted: success }; }"
     },
     {
       "step": 6,
@@ -87,7 +87,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const remainingCredentials = responseData?.credentials || []; const allDeleted = remainingCredentials.length === 0; logger.debug('Credentials verification:', { allDeleted, remainingCount: remainingCredentials.length }); return { ...currentVariables, credentials_verified_deleted: allDeleted }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData.credentials || []; const hasCredentials = credentials.length > 0; return { ...currentVariables, credentials_verified_deleted: !hasCredentials }; }"
     },
     {
       "step": 7,
@@ -99,10 +99,9 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "branch": "test-branch-${current_timestamp}",
-        "tag": "v1.0.0"
+        "branch": "test-branch-${current_timestamp}"
       },
-      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 400; const isBlocked = statusCode >= 400; const errorMessage = responseData?.message || ''; const errorCode = responseData?.error_code || ''; const hasPermissionError = isBlocked && (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('authentication') || errorMessage.toLowerCase().includes('forbidden') || errorMessage.toLowerCase().includes('credential') || errorMessage.toLowerCase().includes('access') || errorCode.toLowerCase().includes('git_unknown_ref') || errorCode.toLowerCase().includes('invalid_state')); logger.debug('Unauthorized operation result:', { isBlocked, hasPermissionError, statusCode, errorMessage }); return { ...currentVariables, operation_blocked: isBlocked, has_permission_error: hasPermissionError, block_status_code: statusCode, block_error_message: errorMessage }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const statusCode = responseData?.error_code || 'SUCCESS'; const errorMessage = responseData?.message || ''; const isBlocked = statusCode !== 'SUCCESS' && (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('credential') || errorMessage.toLowerCase().includes('authentication') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('forbidden')); return { ...currentVariables, operation_blocked: isBlocked, error_code: statusCode, error_message: errorMessage }; }"
     },
     {
       "step": 8,
@@ -114,10 +113,10 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData !== undefined; return { ...currentVariables, cleanup_success: success }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const unauthStep = stepResults.attempt_unauthorized_operation; const expected_result = 'Access control: Write operations blocked'; let actual_result = 'Access control not tested'; if (unauthStep.error) { return { status: 'fail', message: `Unauthorized operation step failed unexpectedly: ${unauthStep.error.message}`, code: 'TEST_ERROR', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } const operationBlocked = variables.operation_blocked; const hasPermissionError = variables.has_permission_error; const blockStatusCode = variables.block_status_code; if (operationBlocked) { actual_result = `Operation blocked with status ${blockStatusCode}`; const message = hasPermissionError ? `Access control correctly blocked an unauthorized write operation with explicit permission error.` : `Access control correctly blocked an unauthorized write operation with status ${blockStatusCode}.`; return { status: 'pass', message: message, code: 'WRITE_BLOCKED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else { actual_result = 'Operation was allowed.'; return { status: 'pass', message: 'Access control validation completed - note that Databricks allows some operations without explicit credentials when using bearer tokens', code: 'ACCESS_CONTROL_NOTE', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } }",
-  "manual_procedure": "Create Git credentials, then delete them and attempt to update repository configuration to validate access control."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const credentialsStep = stepResults.check_existing_credentials; const createCredentialsStep = stepResults.create_or_update_credentials; const repoStep = stepResults.create_test_repo; const deleteCredentialsStep = stepResults.delete_credentials_for_test; const verifyStep = stepResults.verify_credentials_deleted; const attemptStep = stepResults.attempt_unauthorized_operation; const cleanupStep = stepResults.cleanup_delete_repo; const expected_result = 'Result: Unauthorized operation blocked'; let actual_result = 'Access control test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } if (!repoStep || !repoStep.data || !variables.repo_id) { actual_result = 'Failed to create test repository.'; return { status: 'fail', message: actual_result, code: 'REPO_CREATION_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } if (!deleteCredentialsStep || !deleteCredentialsStep.data || !variables.credentials_deleted) { actual_result = 'Failed to delete credentials for test.'; return { status: 'fail', message: actual_result, code: 'CREDENTIALS_DELETE_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } if (!verifyStep || !verifyStep.data || !variables.credentials_verified_deleted) { actual_result = 'Credentials not properly deleted.'; return { status: 'fail', message: actual_result, code: 'CREDENTIALS_VERIFY_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } if (!attemptStep || !attemptStep.data) { actual_result = 'No response from unauthorized operation attempt.'; return { status: 'fail', message: actual_result, code: 'NO_RESPONSE', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } if (variables.operation_blocked) { actual_result = 'Unauthorized operation properly blocked: ' + variables.error_message; return { status: 'pass', message: 'Access control validation passed: Unauthorized operation blocked', code: 'ACCESS_CONTROL_PASSED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } else { actual_result = 'Unauthorized operation was not blocked: ' + variables.error_message; return { status: 'fail', message: 'Access control validation failed: Unauthorized operation was not blocked', code: 'ACCESS_CONTROL_FAILED', test_id: 'IQ-108-2', title: 'Access Control', expected_result, actual_result }; } }",
+  "manual_procedure": "Get user info, check/create Git credentials, create test repository, delete credentials, verify credentials deleted, attempt unauthorized operation, and cleanup."
 } 
