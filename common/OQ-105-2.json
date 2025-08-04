@@ -1,7 +1,7 @@
 {
   "title": "Authorization - Create Group",
   "test_description": "Authorization - Create Group: Create temporary group TEMP_GROUP_OQ105 for testing authorization.",
-  "version": "2.0",
+  "version": "2.1",
   "test_code": "OQ-105-2",
   "test_seq": 2,
   "test_suite": "OQ-105",
@@ -20,7 +20,7 @@
       "payload": {
         "filter": "displayName eq \"TEMP_GROUP_OQ105\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; const groupExists = groupId !== null; logger.debug('Existing group check:', { groupId, groupExists }); return { ...currentVariables, group_id: groupId, group_exists: groupExists }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; const groupExists = groupId !== null; return { ...currentVariables, group_id: groupId, group_exists: groupExists }; }"
     },
     {
       "step": 2,
@@ -32,7 +32,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData === '' || responseData === null; logger.debug('Delete existing group result:', success); if (success) { await delay(3000); } return { ...currentVariables, delete_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData === '' || responseData === null; if (success) { await delay(3000); } return { ...currentVariables, delete_success: success }; }"
     },
     {
       "step": 3,
@@ -49,7 +49,7 @@
         ],
         "displayName": "TEMP_GROUP_OQ105"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; const newGroupId = responseData?.id || null; logger.debug('Create group result:', { success, newGroupId }); if (success) { await delay(5000); } return { ...currentVariables, create_success: success, new_group_id: newGroupId }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; const newGroupId = responseData?.id || null; if (success) { await delay(15000); } return { ...currentVariables, create_success: success, new_group_id: newGroupId }; }"
     },
     {
       "step": 4,
@@ -63,7 +63,7 @@
       "payload": {
         "filter": "displayName eq \"TEMP_GROUP_OQ105\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const verifiedGroupId = resources.length > 0 ? resources[0].id : null; const groupVerified = verifiedGroupId !== null; logger.debug('Verify group created:', { verifiedGroupId, groupVerified }); return { ...currentVariables, verified_group_id: verifiedGroupId, group_verified: groupVerified }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const verifiedGroupId = resources.length > 0 ? resources[0].id : null; const groupVerified = verifiedGroupId !== null; return { ...currentVariables, verified_group_id: verifiedGroupId, group_verified: groupVerified }; }"
     }
   ],
   "response_schema": null,

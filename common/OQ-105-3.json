@@ -1,7 +1,7 @@
 {
   "title": "Authorization Listing - Positive",
   "test_description": "Authorization Listing - Positive: Grant catalog and schema permissions to TEMP_GROUP_OQ105 and verify user2 can list tables.",
-  "version": "2.2",
+  "version": "2.3",
   "test_code": "OQ-105-3",
   "test_seq": 3,
   "test_suite": "OQ-105",
@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const user2Name = responseData.userName || 'test-user'; logger.debug('User2 info:', { user2Name }); return { ...currentVariables, user2_name: user2Name }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const user2Name = responseData.userName || 'test-user'; const user2Id = responseData.id || null; return { ...currentVariables, user2_name: user2Name, user2_id: user2Id }; }"
     },
     {
       "step": 2,
@@ -32,7 +32,7 @@
       "payload": {
         "filter": "displayName eq \"TEMP_GROUP_OQ105\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; logger.debug('Group ID lookup:', { groupId }); return { ...currentVariables, group_id: groupId }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; return { ...currentVariables, group_id: groupId }; }"
     },
     {
       "step": 3,
@@ -60,7 +60,7 @@
           }
         ]
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData && responseData.id; logger.debug('Add user to group result:', success); if (success) { await delay(5000); } return { ...currentVariables, add_user_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData && responseData.id; if (success) { await delay(10000); } return { ...currentVariables, add_user_success: success }; }"
     },
     {
       "step": 4,
@@ -75,7 +75,7 @@
         "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Grant catalog permissions result:', success); if (success) { await delay(5000); } return { ...currentVariables, catalog_grant_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; if (success) { await delay(5000); } return { ...currentVariables, catalog_grant_success: success }; }"
     },
     {
       "step": 5,
@@ -90,7 +90,7 @@
         "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_GROUP_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; logger.debug('Grant schema permissions result:', success); if (success) { await delay(5000); } return { ...currentVariables, schema_grant_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; if (success) { await delay(5000); } return { ...currentVariables, schema_grant_success: success }; }"
     },
     {
       "step": 6,
@@ -105,7 +105,7 @@
         "statement": "SHOW TABLES IN ${catalog_name}.silver",
         "warehouse_id": "${warehouse_id}"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const tableCount = responseData?.result?.data_array?.length || 0; logger.debug('List tables result:', { success, tableCount }); return { ...currentVariables, list_success: success, table_count: tableCount }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const tableCount = responseData?.result?.data_array?.length || 0; return { ...currentVariables, list_success: success, table_count: tableCount }; }"
     }
   ],
   "response_schema": null,
