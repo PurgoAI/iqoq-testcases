@@ -32,10 +32,24 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData === '' || responseData === null; const deletedGroupId = currentVariables.group_id; return { ...currentVariables, delete_success: success, deleted_group_id: deletedGroupId }; }"
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const success = statusCode === 204 || statusCode === 200; const deletedGroupId = currentVariables.group_id; const hasError = responseData && responseData.ERROR; return { ...currentVariables, delete_success: success && !hasError, delete_status_code: statusCode, delete_error: hasError ? responseData.ERROR.message : null, deleted_group_id: deletedGroupId }; }"
     },
     {
       "step": 3,
+      "name": "verify_group_deletion",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "filter": "displayName eq \"TEMP_OQ_105\""
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupStillExists = resources.length > 0; const deletedGroupId = currentVariables.deleted_group_id; const foundDeletedGroup = resources.find(group => group.id === deletedGroupId); const deletionVerified = !groupStillExists || !foundDeletedGroup; let pollAttempts = 0; const maxAttempts = 6; const pollInterval = 2000; // If group still exists, poll to check if it gets deleted while (!deletionVerified && pollAttempts < maxAttempts) { pollAttempts++; console.log('Polling for group deletion, attempt ' + pollAttempts + ' of ' + maxAttempts); await delay(pollInterval); try { const pollResponse = await axios.get(`${currentVariables.workspace_url}/api/2.0/account/scim/v2/Groups`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }, { params: { filter: 'displayName eq \"TEMP_OQ_105\"' } }); const pollResources = pollResponse.data.Resources || []; const pollGroupStillExists = pollResources.length > 0; const pollFoundDeletedGroup = pollResources.find(group => group.id === deletedGroupId); if (!pollGroupStillExists || !pollFoundDeletedGroup) { console.log('Group deletion verified after polling'); return { ...currentVariables, deletion_verified: true, poll_attempts: pollAttempts }; } } catch (error) { console.log('Error during deletion polling:', error.message); } } console.log('Group deletion polling completed after ' + maxAttempts + ' attempts'); return { ...currentVariables, deletion_verified: deletionVerified, poll_attempts: pollAttempts, deletion_polling_completed: true }; }"
+    },
+    {
+      "step": 4,
       "name": "create_group",
       "method": "POST",
       "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
@@ -50,7 +64,7 @@
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; const newGroupId = responseData?.id || null; return { ...currentVariables, create_success: success, new_group_id: newGroupId }; }"
     },
     {
-      "step": 4,
+      "step": 5,
       "name": "wait_for_group_availability",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
@@ -65,6 +79,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const deleteStep = stepResults.delete_existing_group; const createStep = stepResults.create_group; const waitStep = stepResults.wait_for_group_availability; const expected_result = 'Result: Group TEMP_OQ_105 created and verified successfully'; let actual_result = 'Group creation test not completed'; if (!checkStep || !checkStep.data) { actual_result = 'Failed to check existing group.'; return { status: 'fail', message: actual_result, code: 'CHECK_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (variables.group_exists) { if (!deleteStep || !deleteStep.data || !variables.delete_success) { actual_result = 'Failed to delete existing group.'; return { status: 'fail', message: actual_result, code: 'DELETE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } } if (!createStep || !createStep.data || !variables.create_success) { actual_result = 'Failed to create new group.'; return { status: 'fail', message: actual_result, code: 'CREATE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!waitStep || !waitStep.data || !variables.group_verified) { actual_result = 'Failed to verify group creation.'; return { status: 'fail', message: actual_result, code: 'GROUP_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } actual_result = 'Group TEMP_OQ_105 created and verified successfully.'; if (variables.group_exists) { actual_result = 'Existing group deleted, then ' + actual_result; } return { status: 'pass', message: 'Group creation validation passed: TEMP_OQ_105 created and verified successfully', code: 'CREATE_GROUP_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; }",
-  "manual_procedure": "Check for existing group TEMP_OQ_105, delete if exists, create new group TEMP_OQ_105, and verify group creation."
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const deleteStep = stepResults.delete_existing_group; const verifyDeleteStep = stepResults.verify_group_deletion; const createStep = stepResults.create_group; const waitStep = stepResults.wait_for_group_availability; const expected_result = 'Result: Group TEMP_OQ_105 created and verified successfully'; let actual_result = 'Group creation test not completed'; if (!checkStep || !checkStep.data) { actual_result = 'Failed to check existing group.'; return { status: 'fail', message: actual_result, code: 'CHECK_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (variables.group_exists) { if (!deleteStep || !deleteStep.data || !variables.delete_success) { actual_result = 'Failed to delete existing group.'; return { status: 'fail', message: actual_result, code: 'DELETE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!verifyDeleteStep || !verifyDeleteStep.data || !variables.deletion_verified) { actual_result = 'Failed to verify group deletion.'; return { status: 'fail', message: actual_result, code: 'DELETE_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } } if (!createStep || !createStep.data || !variables.create_success) { actual_result = 'Failed to create new group.'; return { status: 'fail', message: actual_result, code: 'CREATE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!waitStep || !waitStep.data || !variables.group_verified) { actual_result = 'Failed to verify group creation.'; return { status: 'fail', message: actual_result, code: 'GROUP_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } actual_result = 'Group TEMP_OQ_105 created and verified successfully.'; if (variables.group_exists) { actual_result = 'Existing group deleted and verified, then ' + actual_result; } return { status: 'pass', message: 'Group creation validation passed: TEMP_OQ_105 created and verified successfully', code: 'CREATE_GROUP_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; }",
+  "manual_procedure": "Check for existing group TEMP_OQ_105, delete if exists, verify deletion with polling, create new group TEMP_OQ_105, and verify group creation."
 } 
