@@ -72,17 +72,16 @@
     {
       "step": 5,
       "name": "delete_repository_files",
-      "method": "POST",
-      "api_url": "${workspace_url}/api/2.0/workspace/delete",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/workspace/list",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
       "payload": {
-        "path": "${repo_path}",
-        "recursive": true
+        "path": "${repo_path}"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const initialFiles = currentVariables.initial_files || []; let deletedCount = 0; let failedCount = 0; console.log('Starting individual file deletion for repository sync test'); for (const obj of initialFiles) { const objPath = obj.path; if (objPath && objPath !== currentVariables.repo_path) { try { const deleteResponse = await axios.post(`${currentVariables.workspace_url}/api/2.0/workspace/delete`, { path: objPath, recursive: true }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); if (deleteResponse.status === 200 || deleteResponse.status === 204) { deletedCount++; console.log(`Successfully deleted: ${objPath}`); } else { failedCount++; console.log(`Failed to delete ${objPath}: ${deleteResponse.status} - ${deleteResponse.data}`); } } catch (error) { failedCount++; console.log(`Error deleting ${objPath}: ${error.message}`); } } } const success = deletedCount > 0; console.log(`File deletion completed: ${deletedCount} deleted, ${failedCount} failed`); return { ...currentVariables, files_deleted: success, deleted_count: deletedCount, failed_count: failedCount }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const objects = responseData.objects || []; let deletedCount = 0; let failedCount = 0; console.log('Starting individual file deletion for repository sync test'); console.log(`Found ${objects.length} objects to delete`); for (const obj of objects) { const objPath = obj.path; if (objPath && objPath !== currentVariables.repo_path) { console.log(`Deleting individual file: ${objPath}`); try { const deleteResponse = await axios.post(`${currentVariables.workspace_url}/api/2.0/workspace/delete`, { path: objPath, recursive: true }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); if (deleteResponse.status === 200 || deleteResponse.status === 204) { deletedCount++; console.log(`Successfully deleted: ${objPath}`); } else { failedCount++; console.log(`Failed to delete ${objPath}: ${deleteResponse.status} - ${deleteResponse.data}`); } } catch (error) { failedCount++; console.log(`Error deleting ${objPath}: ${error.message}`); } } else { console.log(`Skipping repository folder itself: ${objPath}`); } } const success = deletedCount > 0; console.log(`File deletion completed: ${deletedCount} deleted, ${failedCount} failed`); return { ...currentVariables, files_deleted: success, deleted_count: deletedCount, failed_count: failedCount }; }"
     },
     {
       "step": 6,
