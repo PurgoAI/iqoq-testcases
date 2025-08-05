@@ -1,7 +1,7 @@
 {
   "title": "Authorization Listing - Positive",
-  "test_description": "Authorization Listing - Positive: Grant catalog and schema permissions to TEMP_OQ_105 and verify user2 can list tables.",
-  "version": "2.3",
+  "test_description": "Authorization Listing - Positive: Grant USE CATALOG and USE SCHEMA to account-level group and add user as member.",
+  "version": "2.4",
   "test_code": "OQ-105-3",
   "test_seq": 3,
   "test_suite": "OQ-105",
@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "filter": "displayName eq \"TEMP_OQ_105\""
+        "filter": "displayName eq \"TEMP_${catalog_name}_OQ105\""
       },
       "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; return { ...currentVariables, group_id: groupId }; }"
     },
@@ -50,13 +50,12 @@
         "Operations": [
           {
             "op": "add",
-            "value": {
-              "members": [
-                {
-                  "value": "${user2_id}"
-                }
-              ]
-            }
+            "path": "members",
+            "value": [
+              {
+                "value": "${user2_id}"
+              }
+            ]
           }
         ]
       },
@@ -72,7 +71,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_OQ_105",
+        "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_${catalog_name}_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, catalog_grant_success: success }; }"
@@ -87,7 +86,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_OQ_105",
+        "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_${catalog_name}_OQ105",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, schema_grant_success: success }; }"
@@ -109,6 +108,6 @@
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_user2_info; const groupStep = stepResults.find_group_with_retry; const addUserStep = stepResults.add_user_to_group; const catalogStep = stepResults.grant_catalog_permissions; const schemaStep = stepResults.grant_schema_permissions; const listStep = stepResults.test_list_tables; const expected_result = 'Result: User2 can list tables in schema'; let actual_result = 'Authorization test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user2 information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!groupStep || !groupStep.data || !variables.group_id) { actual_result = 'Failed to get group ID for TEMP_OQ_105.'; return { status: 'fail', message: actual_result, code: 'GET_GROUP_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!addUserStep || !addUserStep.data || !variables.add_user_success) { actual_result = 'Failed to add user2 to group TEMP_OQ_105.'; return { status: 'fail', message: actual_result, code: 'ADD_USER_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!catalogStep || !catalogStep.data || !variables.catalog_grant_success) { actual_result = 'Failed to grant catalog permissions to TEMP_OQ_105.'; return { status: 'fail', message: actual_result, code: 'CATALOG_GRANT_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!schemaStep || !schemaStep.data || !variables.schema_grant_success) { actual_result = 'Failed to grant schema permissions to TEMP_OQ_105.'; return { status: 'fail', message: actual_result, code: 'SCHEMA_GRANT_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!listStep || !listStep.data || !variables.list_success) { actual_result = 'Failed to list tables in schema.'; return { status: 'fail', message: actual_result, code: 'LIST_TABLES_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } const tableCount = variables.table_count || 0; const catalogName = variables.catalog_name || 'catalog'; actual_result = 'User2 can list ' + tableCount + ' tables in schema.'; return { status: 'pass', message: 'Authorization validation passed: User2 can list tables in ' + catalogName + '.silver schema', code: 'AUTH_LISTING_POSITIVE_PASSED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; }",
-  "manual_procedure": "Get user2 info, find group TEMP_OQ_105, add user2 to group, grant catalog and schema permissions to group, and verify user2 can list tables in the schema."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_user2_info; const groupStep = stepResults.find_group_with_retry; const addUserStep = stepResults.add_user_to_group; const catalogStep = stepResults.grant_catalog_permissions; const schemaStep = stepResults.grant_schema_permissions; const listStep = stepResults.test_list_tables; const expected_result = 'Result: User2 can list tables in schema through account-level group membership'; let actual_result = 'Authorization test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user2 information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!groupStep || !groupStep.data || !variables.group_id) { actual_result = 'Failed to get account-level group ID for TEMP_' + (variables.catalog_name || 'catalog') + '_OQ105.'; return { status: 'fail', message: actual_result, code: 'GET_GROUP_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!addUserStep || !addUserStep.data || !variables.add_user_success) { actual_result = 'Failed to add user2 to account-level group TEMP_' + (variables.catalog_name || 'catalog') + '_OQ105.'; return { status: 'fail', message: actual_result, code: 'ADD_USER_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!catalogStep || !catalogStep.data || !variables.catalog_grant_success) { actual_result = 'Failed to grant catalog permissions to account-level group TEMP_' + (variables.catalog_name || 'catalog') + '_OQ105.'; return { status: 'fail', message: actual_result, code: 'CATALOG_GRANT_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!schemaStep || !schemaStep.data || !variables.schema_grant_success) { actual_result = 'Failed to grant schema permissions to account-level group TEMP_' + (variables.catalog_name || 'catalog') + '_OQ105.'; return { status: 'fail', message: actual_result, code: 'SCHEMA_GRANT_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } if (!listStep || !listStep.data || !variables.list_success) { actual_result = 'Failed to list tables in schema.'; return { status: 'fail', message: actual_result, code: 'LIST_TABLES_FAILED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; } const tableCount = variables.table_count || 0; const catalogName = variables.catalog_name || 'catalog'; actual_result = 'User2 can list ' + tableCount + ' tables in schema through account-level group membership.'; return { status: 'pass', message: 'Authorization validation passed: User2 can list tables in ' + catalogName + '.silver schema through account-level group TEMP_' + catalogName + '_OQ105', code: 'AUTH_LISTING_POSITIVE_PASSED', test_id: 'OQ-105-3', title: 'Authorization Listing - Positive', expected_result, actual_result }; }",
+  "manual_procedure": "Get user2 info, find account-level group TEMP_{catalog_name}_OQ105, add user2 to account-level group, grant catalog and schema permissions to account-level group, and verify user2 can list tables in the schema through group membership."
 } 

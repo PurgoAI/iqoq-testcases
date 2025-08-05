@@ -1,7 +1,7 @@
 {
   "title": "Authorization - Create Group",
-  "test_description": "Authorization - Create Group: Create temporary group TEMP_OQ_105 for testing authorization.",
-  "version": "2.3",
+  "test_description": "Authorization - Create Group: Create temporary account-level group for testing authorization.",
+  "version": "2.4",
   "test_code": "OQ-105-2",
   "test_seq": 2,
   "test_suite": "OQ-105",
@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "filter": "displayName eq \"TEMP_OQ_105\""
+        "filter": "displayName eq \"TEMP_${catalog_name}_OQ105\""
       },
       "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; const groupExists = groupId !== null; return { ...currentVariables, group_id: groupId, group_exists: groupExists }; }"
     },
@@ -32,7 +32,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const success = statusCode === 204 || statusCode === 200; const deletedGroupId = currentVariables.group_id; const hasError = responseData && responseData.ERROR; return { ...currentVariables, delete_success: success && !hasError, delete_status_code: statusCode, delete_error: hasError ? responseData.ERROR.message : null, deleted_group_id: deletedGroupId }; }"
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const success = statusCode === 204 || statusCode === 200; const deletedGroupId = currentVariables.group_id; const hasError = responseData && responseData.ERROR; const permissionDenied = statusCode === 403 || (responseData && responseData.detail && responseData.detail.toLowerCase().includes('permission')); return { ...currentVariables, delete_success: success && !hasError, delete_status_code: statusCode, delete_error: hasError ? responseData.ERROR.message : null, deleted_group_id: deletedGroupId, permission_denied: permissionDenied }; }"
     },
     {
       "step": 3,
@@ -44,9 +44,9 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "filter": "displayName eq \"TEMP_OQ_105\""
+        "filter": "displayName eq \"TEMP_${catalog_name}_OQ105\""
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupStillExists = resources.length > 0; const deletedGroupId = currentVariables.deleted_group_id; const foundDeletedGroup = resources.find(group => group.id === deletedGroupId); const deletionVerified = !groupStillExists || !foundDeletedGroup; if (deletionVerified) { return { ...currentVariables, deletion_verified: true, poll_attempts: 1 }; } let pollAttempts = 0; const maxAttempts = 6; const pollInterval = 2000; while (pollAttempts < maxAttempts) { pollAttempts++; try { const response = await axios.get(`${currentVariables.workspace_url}/api/2.0/account/scim/v2/Groups`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' }, params: { filter: 'displayName eq \"TEMP_OQ_105\"' } }); const pollResources = response.data.Resources || []; const pollGroupStillExists = pollResources.length > 0; const pollFoundDeletedGroup = pollResources.find(group => group.id === deletedGroupId); if (!pollGroupStillExists || !pollFoundDeletedGroup) { return { ...currentVariables, deletion_verified: true, poll_attempts: pollAttempts }; } else { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } catch (error) { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } return { ...currentVariables, deletion_verified: false, poll_attempts: maxAttempts, deletion_polling_completed: true }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupStillExists = resources.length > 0; const deletedGroupId = currentVariables.deleted_group_id; const foundDeletedGroup = resources.find(group => group.id === deletedGroupId); const deletionVerified = !groupStillExists || !foundDeletedGroup; if (deletionVerified) { return { ...currentVariables, deletion_verified: true, poll_attempts: 1 }; } let pollAttempts = 0; const maxAttempts = 6; const pollInterval = 2000; while (pollAttempts < maxAttempts) { pollAttempts++; try { const response = await axios.get(`${currentVariables.workspace_url}/api/2.0/account/scim/v2/Groups`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' }, params: { filter: 'displayName eq \"TEMP_' + currentVariables.catalog_name + '_OQ105\"' } }); const pollResources = response.data.Resources || []; const pollGroupStillExists = pollResources.length > 0; const pollFoundDeletedGroup = pollResources.find(group => group.id === deletedGroupId); if (!pollGroupStillExists || !pollFoundDeletedGroup) { return { ...currentVariables, deletion_verified: true, poll_attempts: pollAttempts }; } else { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } catch (error) { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } return { ...currentVariables, deletion_verified: false, poll_attempts: maxAttempts, deletion_polling_completed: true }; }"
     },
     {
       "step": 4,
@@ -58,13 +58,29 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "displayName": "TEMP_OQ_105",
+        "displayName": "TEMP_${catalog_name}_OQ105",
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"]
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; const newGroupId = responseData?.id || null; return { ...currentVariables, create_success: success, new_group_id: newGroupId }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; const newGroupId = responseData?.id || null; const alreadyExists = responseData?.detail && responseData.detail.toLowerCase().includes('already exists'); return { ...currentVariables, create_success: success || alreadyExists, new_group_id: newGroupId, group_already_exists: alreadyExists }; }"
     },
     {
       "step": 5,
+      "name": "assign_group_to_workspace",
+      "method": "PUT",
+      "api_url": "${workspace_url}/api/2.0/preview/permissionassignments/principals/${new_group_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "permissions": [
+          "USER"
+        ]
+      },
+      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData && !responseData.error; const permissionDenied = responseData && responseData.error && responseData.error.toLowerCase().includes('permission'); return { ...currentVariables, workspace_assignment_success: success, workspace_assignment_permission_denied: permissionDenied }; }"
+    },
+    {
+      "step": 6,
       "name": "wait_for_group_availability",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.0/account/scim/v2/Groups",
@@ -73,12 +89,12 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "filter": "displayName eq \"TEMP_OQ_105\""
+        "filter": "displayName eq \"TEMP_${catalog_name}_OQ105\""
       },
       "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const foundGroup = resources.find(group => group.id === currentVariables.new_group_id); const groupVerified = foundGroup !== undefined; return { ...currentVariables, group_verified: groupVerified, verified_group_id: foundGroup ? foundGroup.id : null }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const deleteStep = stepResults.delete_existing_group; const verifyDeleteStep = stepResults.verify_group_deletion; const createStep = stepResults.create_group; const waitStep = stepResults.wait_for_group_availability; const expected_result = 'Result: Group TEMP_OQ_105 created and verified successfully'; let actual_result = 'Group creation test not completed'; if (!checkStep || !checkStep.data) { actual_result = 'Failed to check existing group.'; return { status: 'fail', message: actual_result, code: 'CHECK_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (variables.group_exists) { if (!deleteStep || !deleteStep.data || !variables.delete_success) { actual_result = 'Failed to delete existing group.'; return { status: 'fail', message: actual_result, code: 'DELETE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!verifyDeleteStep || !verifyDeleteStep.data || !variables.deletion_verified) { actual_result = 'Failed to verify group deletion.'; return { status: 'fail', message: actual_result, code: 'DELETE_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } } if (!createStep || !createStep.data || !variables.create_success) { actual_result = 'Failed to create new group.'; return { status: 'fail', message: actual_result, code: 'CREATE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!waitStep || !waitStep.data || !variables.group_verified) { actual_result = 'Failed to verify group creation.'; return { status: 'fail', message: actual_result, code: 'GROUP_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } actual_result = 'Group TEMP_OQ_105 created and verified successfully.'; if (variables.group_exists) { actual_result = 'Existing group deleted and verified, then ' + actual_result; } return { status: 'pass', message: 'Group creation validation passed: TEMP_OQ_105 created and verified successfully', code: 'CREATE_GROUP_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; }",
-  "manual_procedure": "Check for existing group TEMP_OQ_105, delete if exists, verify deletion with polling, create new group TEMP_OQ_105, and verify group creation."
+  "parser_code": "function aggregateResults(stepResults) { const checkStep = stepResults.check_existing_group; const deleteStep = stepResults.delete_existing_group; const verifyDeleteStep = stepResults.verify_group_deletion; const createStep = stepResults.create_group; const assignStep = stepResults.assign_group_to_workspace; const waitStep = stepResults.wait_for_group_availability; const expected_result = 'Account-level group TEMP_' + (variables.catalog_name || 'catalog') + '_OQ105 created, assigned to workspace, and verified successfully'; let actual_result = 'Group creation test not completed'; if (!checkStep || !checkStep.data) { actual_result = 'Failed to check existing group.'; return { status: 'fail', message: actual_result, code: 'CHECK_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (variables.group_exists) { if (variables.permission_denied) { actual_result = 'Permission denied when trying to delete existing group (account-level group management requires account admin permissions).'; return { status: 'fail', message: actual_result, code: 'PERMISSION_DENIED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!deleteStep || !deleteStep.data || !variables.delete_success) { actual_result = 'Failed to delete existing group.'; return { status: 'fail', message: actual_result, code: 'DELETE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!verifyDeleteStep || !verifyDeleteStep.data || !variables.deletion_verified) { actual_result = 'Failed to verify group deletion.'; return { status: 'fail', message: actual_result, code: 'DELETE_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } } if (!createStep || !createStep.data || !variables.create_success) { actual_result = 'Failed to create new account-level group.'; return { status: 'fail', message: actual_result, code: 'CREATE_GROUP_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } if (!assignStep || !assignStep.data || !variables.workspace_assignment_success) { if (variables.workspace_assignment_permission_denied) { actual_result = 'Permission denied when assigning group to workspace (requires workspace admin permissions).'; return { status: 'fail', message: actual_result, code: 'WORKSPACE_ASSIGNMENT_PERMISSION_DENIED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } else { actual_result = 'Failed to assign account-level group to workspace.'; return { status: 'fail', message: actual_result, code: 'WORKSPACE_ASSIGNMENT_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } } if (!waitStep || !waitStep.data || !variables.group_verified) { actual_result = 'Failed to verify group creation.'; return { status: 'fail', message: actual_result, code: 'GROUP_VERIFICATION_FAILED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; } const catalogName = variables.catalog_name || 'catalog'; actual_result = 'Account-level group TEMP_' + catalogName + '_OQ105 created, assigned to workspace, and verified successfully.'; if (variables.group_exists) { actual_result = 'Existing group deleted and verified, then ' + actual_result; } return { status: 'pass', message: 'Account-level group creation validation passed: TEMP_' + catalogName + '_OQ105 created, assigned to workspace, and verified successfully', code: 'CREATE_GROUP_PASSED', test_id: 'OQ-105-2', title: 'Authorization - Create Group', expected_result, actual_result }; }",
+  "manual_procedure": "Check for existing account-level group TEMP_{catalog_name}_OQ105, delete if exists (with permission handling), verify deletion with polling, create new account-level group TEMP_{catalog_name}_OQ105, assign group to workspace, and verify group creation."
 } 
