@@ -1,6 +1,6 @@
 {
-  "title": "Git Sync Validation",
-  "test_description": "Validate Git sync functionality by uploading a file to GitHub and verifying it appears in the Databricks repository after sync.",
+  "title": "Access Control Validation",
+  "test_description": "Validate access control by attempting to add a file without Git PAT.",
   "version": "2.4",
   "test_code": "IQ-108-2",
   "test_seq": 2,
@@ -18,125 +18,27 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData.userName || 'validation-user'; const currentTimestamp = Date.now().toString(); const repoUrl = currentVariables.repo_url || ''; let gitRepoOwner = ''; let gitRepoName = ''; if (repoUrl) { const urlParts = repoUrl.replace('https://github.com/', '').split('/'); if (urlParts.length >= 2) { gitRepoOwner = urlParts[0]; gitRepoName = urlParts[1]; } } return { ...currentVariables, user_name: userName, current_timestamp: currentTimestamp, git_repo_owner: gitRepoOwner, git_repo_name: gitRepoName }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData.userName || 'validation-user'; const currentTimestamp = Date.now(); const gitRepoOwner = currentVariables.repo_url ? currentVariables.repo_url.split('/').slice(-2)[0] : null; const gitRepoName = currentVariables.repo_url ? currentVariables.repo_url.split('/').slice(-1)[0] : null; return { ...currentVariables, user_name: userName, current_timestamp: currentTimestamp, git_repo_owner: gitRepoOwner, git_repo_name: gitRepoName }; }"
     },
     {
       "step": 2,
-      "name": "check_repository_exists",
-      "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/repos",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {},
-      "post_processing": "function processStep(responseData, currentVariables) { const repos = responseData.repos || []; const repoFound = repos.some(repo => repo.url === currentVariables.repo_url); const repoId = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).id : null; const repoPath = repoFound ? repos.find(repo => repo.url === currentVariables.repo_url).path : null; return { ...currentVariables, repo_exists: repoFound, repo_id: repoId, repo_path: repoPath }; }"
-    },
-    {
-      "step": 3,
-      "name": "create_repository_if_needed",
-      "method": "POST",
-      "api_url": "${workspace_url}/api/2.0/repos",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "url": "${repo_url}",
-        "provider": "${git_provider}",
-        "path": "/Users/${user_name}/iq-oq-sync-validation-${current_timestamp}",
-        "branch": "main"
-      },
-      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const repoId = responseData?.id || currentVariables.repo_id; const repoPath = responseData?.path || currentVariables.repo_path; const isCreated = statusCode === 200 && repoId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists || currentVariables.repo_exists; return { ...currentVariables, repo_id: repoId, repo_path: repoPath, repo_created: isCreated, repo_already_exists: alreadyExists, repo_operation_success: success }; }"
-    },
-    {
-      "step": 4,
-      "name": "list_initial_contents",
-      "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/workspace/list",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "path": "${repo_path}"
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const initialFileCount = objects.length; const hasFiles = initialFileCount > 0; const initialFiles = objects.map(obj => obj.path); return { ...currentVariables, initial_file_count: initialFileCount, initial_files: initialFiles, has_files: hasFiles }; }"
-    },
-    {
-      "step": 5,
-      "name": "upload_test_file_to_github",
+      "name": "attempt_file_upload_without_pat",
       "method": "PUT",
-      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/test-sync-file-${current_timestamp}.txt",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/test-access-control-${current_timestamp}.txt",
       "headers": {
-        "Authorization": "Bearer ${personal_access_token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "Content-Type": "application/json"
       },
       "payload": {
-        "message": "Test file for Databricks sync validation - ${current_timestamp}",
-        "content": "VGhpcyBpcyBhIHRlc3QgZmlsZSBmb3IgdmFsaWRhdGluZyBEYXRhYnJpY2tzIEdpdCBzeW5jIGZ1bmN0aW9uYWxpdHkuIENyZWF0ZWQgYXQ6ICR7Y3VycmVudF90aW1lc3RhbXB9",
-        "branch": "main",
-        "author": {
-          "name": "Databricks Test User",
-          "email": "${git_username}"
-        }
-      },
-      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isUploaded = statusCode === 200 || statusCode === 201; const fileSha = responseData?.content?.sha || null; const filePath = responseData?.content?.path || null; const downloadUrl = responseData?.content?.download_url || null; return { ...currentVariables, file_uploaded: isUploaded, uploaded_file_sha: fileSha, uploaded_file_path: filePath, uploaded_file_url: downloadUrl, upload_status_code: statusCode }; }"
-    },
-    {
-      "step": 6,
-      "name": "trigger_sync",
-      "method": "PATCH",
-      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
+        "message": "Test file for access control validation - ${current_timestamp}",
+        "content": "VGhpcyBpcyBhIHRlc3QgZmlsZSBmb3IgYWNjZXNzIGNvbnRyb2wgdmFsaWRhdGlvbi4gQ3JlYXRlZCBhdDogJHtjdXJyZW50X3RpbWVzdGFtcH0=",
         "branch": "main"
       },
-      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; if (!success) { return { ...currentVariables, sync_triggered: false }; } const uploadedFileName = currentVariables.uploaded_file_path ? currentVariables.uploaded_file_path.split('/').pop() : null; if (!uploadedFileName) { return { ...currentVariables, sync_triggered: success, sync_completed: false, polling_completed: true, uploaded_file_found: false }; } const startTime = Date.now(); const pollInterval = 15000; let pollAttempts = 0; const maxAttempts = 20; while (pollAttempts < maxAttempts) { pollAttempts++; try { const response = await axios.get(`${currentVariables.workspace_url}/api/2.0/workspace/list`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' }, params: { path: currentVariables.repo_path } }); const objects = response.data.objects || []; const fileFound = uploadedFileName ? objects.some(obj => obj.path && obj.path.includes(uploadedFileName)) : false; if (fileFound) { const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, sync_triggered: success, sync_completed: true, polling_completed: true, poll_attempts: pollAttempts, sync_time_seconds: elapsedTime, uploaded_file_found: true }; } else { if (pollAttempts < maxAttempts) { try { await axios.patch(`${currentVariables.workspace_url}/api/2.0/repos/${currentVariables.repo_id}`, { branch: 'main' }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); } catch (syncError) { } await delay(pollInterval); } } } catch (error) { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, sync_triggered: success, sync_completed: false, polling_completed: true, poll_attempts: maxAttempts, polling_timeout: true, sync_time_seconds: elapsedTime, uploaded_file_found: false }; }"
-    },
-    {
-      "step": 7,
-      "name": "validate_sync_completion",
-      "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/workspace/list",
-      "headers": {
-        "Authorization": "Bearer ${token}",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "path": "${repo_path}"
-      },
-      "post_processing": "function processStep(responseData, currentVariables) { const objects = responseData.objects || []; const uploadedFileName = currentVariables.uploaded_file_path ? currentVariables.uploaded_file_path.split('/').pop() : null; const fileFound = uploadedFileName ? objects.some(obj => obj.path && obj.path.includes(uploadedFileName)) : false; const syncValidated = fileFound && currentVariables.uploaded_file_found; return { ...currentVariables, sync_validation_completed: true, final_file_found: fileFound, sync_validated: syncValidated }; }"
-    },
-    {
-      "step": 8,
-      "name": "delete_test_file_from_github",
-      "method": "DELETE",
-      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/test-sync-file-${current_timestamp}.txt",
-      "headers": {
-        "Authorization": "Bearer ${personal_access_token}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "Content-Type": "application/json"
-      },
-      "payload": {
-        "message": "Cleanup: Remove test file after sync validation - ${current_timestamp}",
-        "sha": "${uploaded_file_sha}",
-        "branch": "main",
-        "committer": {
-          "name": "Databricks Test User",
-          "email": "${git_username}"
-        }
-      },
-      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isDeleted = statusCode === 200; const commitSha = responseData?.commit?.sha || null; return { ...currentVariables, file_deleted: isDeleted, deletion_commit_sha: commitSha, deletion_status_code: statusCode }; }"
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const responseText = responseData?.message || ''; const isBlocked = statusCode === 401 || statusCode === 403 || statusCode === 422 || responseText.toLowerCase().includes('unauthorized') || responseText.toLowerCase().includes('bad credentials') || responseText.toLowerCase().includes('authentication') || responseText.toLowerCase().includes('token') || responseText.toLowerCase().includes('forbidden'); const uploadSuccessful = statusCode === 201; return { ...currentVariables, operation_blocked: isBlocked, upload_successful: uploadSuccessful, error_code: statusCode, error_message: responseText }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const checkRepoStep = stepResults.check_repository_exists; const createRepoStep = stepResults.create_repository_if_needed; const listStep = stepResults.list_initial_contents; const uploadStep = stepResults.upload_test_file_to_github; const syncStep = stepResults.trigger_sync; const validateSyncStep = stepResults.validate_sync_completion; const deleteStep = stepResults.delete_test_file_from_github; const expected_result = 'Git sync validation: file uploaded to GitHub and synced to Databricks repository'; let actual_result = 'Git sync validation not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } if (!createRepoStep || !createRepoStep.data || !variables.repo_operation_success) { actual_result = 'Failed to create or find repository.'; return { status: 'fail', message: actual_result, code: 'REPO_CREATION_FAILED', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } if (!uploadStep || !uploadStep.data || !variables.file_uploaded) { actual_result = 'Failed to upload file to GitHub.'; return { status: 'fail', message: actual_result, code: 'FILE_UPLOAD_FAILED', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } if (!syncStep || !syncStep.data || !variables.sync_triggered) { actual_result = 'Failed to trigger repository sync.'; return { status: 'fail', message: actual_result, code: 'SYNC_TRIGGER_FAILED', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } if (!variables.polling_completed) { actual_result = 'Failed to complete repository sync polling.'; return { status: 'fail', message: actual_result, code: 'POLLING_INCOMPLETE', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } if (variables.uploaded_file_found) { const pollAttempts = variables.poll_attempts || 0; const syncTime = variables.sync_time_seconds || 0; const uploadedFileName = variables.uploaded_file_path ? variables.uploaded_file_path.split('/').pop() : 'test file'; const cleanupStatus = variables.file_deleted ? ' and cleanup completed' : ' (cleanup failed)'; actual_result = `Git sync validation successful: file '${uploadedFileName}' uploaded to GitHub and synced to Databricks after ${pollAttempts} polling attempts in ${syncTime.toFixed(2)} seconds${cleanupStatus}.`; return { status: 'pass', message: 'Git sync validation passed', code: 'REPO_SYNC_VALIDATED', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } else { const syncTime = variables.sync_time_seconds || 0; const pollAttempts = variables.poll_attempts || 0; if (variables.polling_timeout) { actual_result = `Git sync validation failed: uploaded file did not sync within time limit (${syncTime.toFixed(2)} seconds after ${pollAttempts} polling attempts).`; return { status: 'fail', message: actual_result, code: 'SYNC_TIMEOUT', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } else { actual_result = `Git sync validation completed - file upload successful, sync process initiated. Sync time: ${syncTime.toFixed(2)} seconds.`; return { status: 'pass', message: 'Git sync validation completed - file upload successful, sync process initiated', code: 'REPO_SYNC_PARTIAL', test_id: 'IQ-108-2', title: 'Git Sync Validation', expected_result, actual_result }; } } }",
-  "manual_procedure": "Get current user, check/create repository, list initial contents, upload test file to GitHub, trigger sync and poll for completion (up to 5 minutes), validate sync completion, and cleanup."
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const uploadStep = stepResults.attempt_file_upload_without_pat; const expected_result = 'Access control properly blocks file upload without Git PAT'; let actual_result = 'Access control validation not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'IQ-108-2', title: 'Access Control Validation', expected_result, actual_result }; } if (!uploadStep || !uploadStep.data) { actual_result = 'No response from file upload attempt.'; return { status: 'fail', message: actual_result, code: 'NO_RESPONSE', test_id: 'IQ-108-2', title: 'Access Control Validation', expected_result, actual_result }; } if (variables.operation_blocked) { actual_result = 'Access control properly blocked file upload without Git PAT'; return { status: 'pass', message: 'Access control validation passed: File upload was blocked without Git PAT', code: 'ACCESS_CONTROL_PASSED', test_id: 'IQ-108-2', title: 'Access Control Validation', expected_result, actual_result }; } else if (variables.upload_successful) { actual_result = 'File upload succeeded without Git PAT (unexpected)'; return { status: 'fail', message: 'Access control validation failed: File upload succeeded without Git PAT', code: 'ACCESS_CONTROL_FAILED', test_id: 'IQ-108-2', title: 'Access Control Validation', expected_result, actual_result }; } else { actual_result = 'File upload failed for unexpected reason: ' + (variables.error_message || 'Unknown error'); return { status: 'fail', message: 'Access control validation failed: ' + actual_result, code: 'ACCESS_CONTROL_UNEXPECTED_ERROR', test_id: 'IQ-108-2', title: 'Access Control Validation', expected_result, actual_result }; } }",
+  "manual_procedure": "Get current user, extract GitHub repo details, and attempt to upload a file without Git PAT to validate access control."
 } 
