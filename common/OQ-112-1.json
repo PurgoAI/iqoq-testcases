@@ -35,7 +35,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "CREATE SHARE test_data_share COMMENT 'Test share for validation'",
+        "statement": "CREATE SHARE test_data_share_${catalog_name} COMMENT 'Test share for validation'",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -51,7 +51,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "DESCRIBE SHARE test_data_share",
+        "statement": "DESCRIBE SHARE test_data_share_${catalog_name}",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -67,7 +67,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SHOW ALL IN SHARE test_data_share",
+        "statement": "SHOW ALL IN SHARE test_data_share_${catalog_name}",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },

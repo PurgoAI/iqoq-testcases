@@ -51,7 +51,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT SELECT ON SHARE test_data_share TO RECIPIENT test_partner_company",
+        "statement": "GRANT SELECT ON SHARE test_data_share_${catalog_name} TO RECIPIENT test_partner_company",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
