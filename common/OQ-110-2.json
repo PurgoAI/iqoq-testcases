@@ -13,7 +13,7 @@
       "name": "check_drift_monitor_status",
       "method": "GET",
       "api_url": "${workspace_url}/api/2.1/unity-catalog/tables/${catalog_name}.bronze.demographics/monitor",
-      "headers": {
+      "headers" : {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },

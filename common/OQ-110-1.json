@@ -19,11 +19,7 @@
       },
       "payload": {
         "assets_dir": "/Workspace/Users/${user_name}/databricks_lakehouse_monitoring/${catalog_name}.bronze.demographics",
-        "output_schema_name": "${catalog_name}.bronze",
-        "time_series": {
-          "timestamp_col": "created_date",
-          "granularities": ["30 minutes"]
-        }
+        "output_schema_name": "${catalog_name}.bronze"
       },
       "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isCreated = statusCode === 200 || statusCode === 201; const monitorId = responseData?.monitor_id || null; const tableName = responseData?.table_name || currentVariables.catalog_name + '.bronze.demographics'; const assetsDir = responseData?.assets_dir || 'Not configured'; const outputSchema = responseData?.output_schema_name || 'Not configured'; const timestampCol = responseData?.time_series?.timestamp_col || 'Not configured'; const granularities = responseData?.time_series?.granularities || []; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists; return { ...currentVariables, monitor_created: success, monitor_id: monitorId, table_name: tableName, assets_dir: assetsDir, output_schema: outputSchema, timestamp_column: timestampCol, granularities: granularities, monitor_already_exists: alreadyExists, create_status_code: statusCode }; }"
     }
