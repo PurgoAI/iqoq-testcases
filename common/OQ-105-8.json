@@ -30,7 +30,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT SELECT ON TABLE iq_oq_demo.silver.sdtm_dm TO `${user2_name}`",
+        "statement": "GRANT SELECT ON TABLE ${catalog_name}.silver.sdtm_dm TO `${user2_name}`",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, grant_success: success }; }"
@@ -45,7 +45,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const maxRetries = 6; const retryDelay = 5000; const currentRetry = currentVariables.permission_retry_count || 0; const startTime = currentVariables.permission_start_time || Date.now(); const elapsedTime = Date.now() - startTime; const maxWaitTime = 30000; if (currentRetry === 0) { return { ...currentVariables, permission_retry_count: 1, permission_start_time: startTime, wait_completed: false }; } if (elapsedTime >= maxWaitTime) { return { ...currentVariables, wait_completed: true, wait_timeout: true }; } if (currentRetry < maxRetries) { setTimeout(() => { currentVariables.permission_retry_count = currentRetry + 1; }, retryDelay); return { ...currentVariables, permission_retry_count: currentRetry + 1, wait_completed: false }; } return { ...currentVariables, wait_completed: true, wait_success: true }; }"
@@ -60,7 +60,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, select_success: success }; }"

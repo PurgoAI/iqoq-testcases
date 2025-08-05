@@ -72,7 +72,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE CATALOG ON CATALOG iq_oq_demo TO TEMP_OQ_105",
+        "statement": "GRANT USE CATALOG ON CATALOG ${catalog_name} TO TEMP_OQ_105",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, catalog_grant_success: success }; }"
@@ -87,7 +87,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT USE SCHEMA ON SCHEMA iq_oq_demo.silver TO TEMP_OQ_105",
+        "statement": "GRANT USE SCHEMA ON SCHEMA ${catalog_name}.silver TO TEMP_OQ_105",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, schema_grant_success: success }; }"
@@ -102,7 +102,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SHOW TABLES IN iq_oq_demo.silver",
+        "statement": "SHOW TABLES IN ${catalog_name}.silver",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const tableCount = responseData?.result?.data_array?.length || 0; return { ...currentVariables, list_success: success, table_count: tableCount }; }"

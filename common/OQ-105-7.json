@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const statusCode = responseData?.status?.state || 'UNKNOWN'; const errorMessage = responseData?.status?.error?.message || ''; const sqlState = responseData?.status?.sql_state || ''; const isPermissionError = statusCode === 'FAILED' && (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('privileges') || errorMessage.toLowerCase().includes('access') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.toLowerCase().includes('forbidden') || errorMessage.toLowerCase().includes('insufficient') || errorMessage.toLowerCase().includes('permission_denied') || errorMessage.toLowerCase().includes('insufficient_permissions') || sqlState === '42501' || sqlState === '42000'); logger.debug('Permission error check:', { statusCode, errorMessage, sqlState, isPermissionError }); return { ...currentVariables, is_permission_error: isPermissionError, error_message: errorMessage, sql_state: sqlState }; }"

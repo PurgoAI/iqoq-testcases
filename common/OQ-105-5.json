@@ -18,7 +18,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT SELECT ON TABLE iq_oq_demo.silver.sdtm_dm TO TEMP_OQ_105",
+        "statement": "GRANT SELECT ON TABLE ${catalog_name}.silver.sdtm_dm TO TEMP_OQ_105",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; const error = responseData?.status?.error?.message || ''; const principalNotFound = error.toLowerCase().includes('principal') && error.toLowerCase().includes('not found'); return { ...currentVariables, grant_success: success, grant_error: error, principal_not_found: principalNotFound }; }"
@@ -33,7 +33,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "async function processStep(responseData, currentVariables) { const maxAttempts = 12; const pollInterval = 5000; const maxWaitTime = 60000; const startTime = currentVariables.permission_start_time || Date.now(); const currentAttempt = currentVariables.permission_attempt || 0; const elapsedTime = Date.now() - startTime; console.log('Permission polling attempt ' + (currentAttempt + 1) + ' of ' + maxAttempts); if (currentAttempt === 0) { console.log('Starting permission propagation polling...'); return { ...currentVariables, permission_start_time: startTime, permission_attempt: 1, wait_completed: false }; } if (elapsedTime >= maxWaitTime) { console.log('Permission propagation timeout after ' + (maxWaitTime/1000) + ' seconds'); return { ...currentVariables, wait_completed: true, wait_timeout: true }; } const success = responseData?.status?.state === 'SUCCEEDED'; if (success) { console.log('Permission propagation successful after ' + (elapsedTime/1000) + ' seconds'); return { ...currentVariables, wait_completed: true, wait_success: true, permission_propagated: true }; } else { console.log('Permission not yet propagated, waiting... (attempt ' + (currentAttempt + 1) + ')'); if (currentAttempt < maxAttempts) { await delay(pollInterval); return { ...currentVariables, permission_attempt: currentAttempt + 1, wait_completed: false }; } else { console.log('Permission propagation failed after ' + maxAttempts + ' attempts'); return { ...currentVariables, wait_completed: true, wait_timeout: true }; } } }"
@@ -48,7 +48,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "SELECT * FROM iq_oq_demo.silver.sdtm_dm LIMIT 5",
+        "statement": "SELECT * FROM ${catalog_name}.silver.sdtm_dm LIMIT 5",
         "warehouse_id": "${warehouse_id}"
       },
       "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.status?.state === 'SUCCEEDED'; return { ...currentVariables, select_success: success }; }"
