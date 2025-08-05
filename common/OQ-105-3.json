@@ -32,7 +32,7 @@
       "payload": {
         "filter": "displayName eq \"TEMP_${catalog_name}_OQ105\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; return { ...currentVariables, group_id: groupId }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupId = resources.length > 0 ? resources[0].id : null; if (!groupId) { console.log('Group not found, waiting 30 seconds before retry...'); await delay(30000); } return { ...currentVariables, group_id: groupId }; }"
     },
     {
       "step": 3,
@@ -59,7 +59,7 @@
           }
         ]
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData && responseData.id; return { ...currentVariables, add_user_success: success }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData && responseData.id; if (success) { console.log('User added to group successfully, waiting 30 seconds for propagation...'); await delay(30000); } return { ...currentVariables, add_user_success: success }; }"
     },
     {
       "step": 4,

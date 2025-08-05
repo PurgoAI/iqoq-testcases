@@ -61,7 +61,7 @@
         "displayName": "TEMP_${catalog_name}_OQ105",
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"]
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; const newGroupId = responseData?.id || null; const alreadyExists = responseData?.detail && responseData.detail.toLowerCase().includes('already exists'); return { ...currentVariables, create_success: success || alreadyExists, new_group_id: newGroupId, group_already_exists: alreadyExists }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; const newGroupId = responseData?.id || null; const alreadyExists = responseData?.detail && responseData.detail.toLowerCase().includes('already exists'); if (success || alreadyExists) { console.log('Group created successfully, waiting 30 seconds for propagation...'); await delay(30000); } return { ...currentVariables, create_success: success || alreadyExists, new_group_id: newGroupId, group_already_exists: alreadyExists }; }"
     },
     {
       "step": 5,
@@ -77,7 +77,7 @@
           "USER"
         ]
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const success = responseData && !responseData.error; const permissionDenied = responseData && responseData.error && responseData.error.toLowerCase().includes('permission'); return { ...currentVariables, workspace_assignment_success: success, workspace_assignment_permission_denied: permissionDenied }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData && !responseData.error; const permissionDenied = responseData && responseData.error && responseData.error.toLowerCase().includes('permission'); if (success) { console.log('Group assigned to workspace successfully, waiting 30 seconds for propagation...'); await delay(30000); } return { ...currentVariables, workspace_assignment_success: success, workspace_assignment_permission_denied: permissionDenied }; }"
     },
     {
       "step": 6,
