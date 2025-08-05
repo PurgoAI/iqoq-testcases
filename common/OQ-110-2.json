@@ -1,0 +1,39 @@
+{
+  "title": "Check Data Drift Monitor Status",
+  "test_description": "Validates that the data drift monitor for the demographics table is active and properly configured with time-series monitoring",
+  "version": "1.0",
+  "test_code": "OQ-110-2",
+  "test_seq": 2,
+  "test_suite": "OQ-110",
+  "test_suite_title": "Data Drift Monitoring",
+  "category": "OQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_drift_monitor_status",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.1/unity-catalog/tables/${catalog_name}.bronze.demographics/monitor",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const tableName = responseData?.table_name || currentVariables.catalog_name + '.bronze.demographics'; const status = responseData?.status || 'UNKNOWN'; const isActive = status === 'MONITOR_STATUS_ACTIVE'; const schedule = responseData?.schedule?.quartz_cron_expression || 'Not configured'; const profileMetricsTable = responseData?.profile_metrics_table_name || 'Not configured'; const driftMetricsTable = responseData?.drift_metrics_table_name || 'Not configured'; const dashboardId = responseData?.dashboard_id || 'Not configured'; const assetsDir = responseData?.assets_dir || 'Not configured'; const outputSchema = responseData?.output_schema_name || 'Not configured'; const timestampCol = responseData?.time_series?.timestamp_col || 'Not configured'; const granularities = responseData?.time_series?.granularities || []; const monitorId = responseData?.monitor_id || 'Not configured'; return { ...currentVariables, table_name: tableName, monitor_status: status, is_active: isActive, schedule: schedule, profile_metrics_table: profileMetricsTable, drift_metrics_table: driftMetricsTable, dashboard_id: dashboardId, assets_dir: assetsDir, output_schema: outputSchema, timestamp_column: timestampCol, granularities: granularities, monitor_id: monitorId }; }"
+    },
+    {
+      "step": 2,
+      "name": "check_monitor_refreshes",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.1/unity-catalog/tables/${catalog_name}.bronze.demographics/monitor/refreshes",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const refreshes = responseData?.refreshes || []; const refreshCount = refreshes.length; const hasRefreshes = refreshCount > 0; const latestRefresh = hasRefreshes ? refreshes[0] : null; const latestRefreshTime = latestRefresh?.refresh_time || null; const latestRefreshStatus = latestRefresh?.status || 'UNKNOWN'; const isLatestSuccessful = latestRefreshStatus === 'SUCCESS'; const refreshHistory = refreshes.slice(0, 5).map(refresh => ({ time: refresh.refresh_time, status: refresh.status })); return { ...currentVariables, refresh_count: refreshCount, has_refreshes: hasRefreshes, latest_refresh_time: latestRefreshTime, latest_refresh_status: latestRefreshStatus, latest_refresh_successful: isLatestSuccessful, refresh_history: refreshHistory }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const statusStep = stepResults.check_drift_monitor_status; const refreshStep = stepResults.check_monitor_refreshes; const expected_result = 'Data drift monitor is active and properly configured with successful refresh history'; let actual_result = 'Data drift monitor status validation failed'; let status = 'fail'; let code = 'MONITOR_STATUS_FAILED'; let message = 'Data drift monitor status validation failed'; if (statusStep.error) { if (statusStep.response_status === 404) { status = 'fail'; message = 'Data drift monitor is not configured for table ' + variables.catalog_name + '.bronze.demographics'; code = 'MONITOR_NOT_CONFIGURED'; actual_result = 'Data drift monitor is not configured for demographics table'; } else { status = 'error'; message = `Failed to check data drift monitor status: HTTP ${statusStep.response_status || 'Unknown'}`; code = `HTTP_${statusStep.response_status || 'UNKNOWN'}`; actual_result = `API call failed with status code ${statusStep.response_status || 'Unknown'}`; } } else { const isActive = variables.is_active || false; const monitorStatus = variables.monitor_status || 'UNKNOWN'; const tableName = variables.table_name || variables.catalog_name + '.bronze.demographics'; const schedule = variables.schedule || 'Not configured'; const profileMetricsTable = variables.profile_metrics_table || 'Not configured'; const driftMetricsTable = variables.drift_metrics_table || 'Not configured'; const dashboardId = variables.dashboard_id || 'Not configured'; const assetsDir = variables.assets_dir || 'Not configured'; const outputSchema = variables.output_schema || 'Not configured'; const timestampCol = variables.timestamp_column || 'Not configured'; const granularities = variables.granularities || []; const monitorId = variables.monitor_id || 'Not configured'; const hasRefreshes = variables.has_refreshes || false; const refreshCount = variables.refresh_count || 0; const latestRefreshSuccessful = variables.latest_refresh_successful || false; const latestRefreshTime = variables.latest_refresh_time || 'Not available'; if (isActive) { if (hasRefreshes && latestRefreshSuccessful) { status = 'pass'; message = 'Data drift monitor is active and has successful refresh history'; code = 'MONITOR_ACTIVE_WITH_REFRESHES'; actual_result = `Data drift monitor active for ${tableName}. Monitor ID: ${monitorId}. Status: ${monitorStatus}. Schedule: ${schedule}. Assets dir: ${assetsDir}. Output schema: ${outputSchema}. Timestamp column: ${timestampCol}. Granularities: ${granularities.join(', ')}. Metrics tables: ${profileMetricsTable}, ${driftMetricsTable}. Dashboard: ${dashboardId}. Refresh count: ${refreshCount}. Latest refresh: ${latestRefreshTime} (SUCCESS)`; } else if (hasRefreshes) { status = 'pass'; message = 'Data drift monitor is active but latest refresh had issues'; code = 'MONITOR_ACTIVE_REFRESH_ISSUES'; actual_result = `Data drift monitor active for ${tableName}. Monitor ID: ${monitorId}. Status: ${monitorStatus}. Refresh count: ${refreshCount}. Latest refresh: ${latestRefreshTime} (${variables.latest_refresh_status || 'UNKNOWN'})`; } else { status = 'pass'; message = 'Data drift monitor is active but no refresh history available'; code = 'MONITOR_ACTIVE_NO_REFRESHES'; actual_result = `Data drift monitor active for ${tableName}. Monitor ID: ${monitorId}. Status: ${monitorStatus}. No refresh history available yet`; } } else { status = 'fail'; message = `Data drift monitor is not active. Current status: ${monitorStatus}`; code = 'MONITOR_INACTIVE'; actual_result = `Data drift monitor not active. Status: ${monitorStatus}. Expected: MONITOR_STATUS_ACTIVE`; } } return { status: status, message: message, code: code, test_id: 'OQ-110-2', title: 'Check Data Drift Monitor Status', expected_result, actual_result }; }",
+  "manual_procedure": "Check data drift monitor status and refresh history for demographics table to validate monitoring is active and functioning"
+} 

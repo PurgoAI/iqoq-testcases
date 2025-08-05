@@ -1,9 +1,8 @@
 {
-  "title": "Data Drift Monitoring Configuration",
-  "test_description": "Validates data drift monitoring configuration for the demographics table to ensure proper drift detection is set up",
+  "title": "Create Data Drift Monitor for Demographics Table",
+  "test_description": "Creates a data drift monitor for the demographics table with time-series configuration to enable drift detection and monitoring",
   "version": "1.0",
   "test_code": "OQ-110-1",
-  "manual_procedure": "Check data drift monitoring configuration for demographics table",
   "test_seq": 1,
   "test_suite": "OQ-110",
   "test_suite_title": "Data Drift Monitoring",
@@ -11,16 +10,25 @@
   "api_calls": [
     {
       "step": 1,
-      "name": "check_drift_monitoring",
-      "method": "GET",
+      "name": "create_drift_monitor",
+      "method": "POST",
       "api_url": "${workspace_url}/api/2.1/unity-catalog/tables/${catalog_name}.bronze.demographics/monitor",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const tableName = responseData?.table_name || currentVariables.catalog_name + '.bronze.demographics'; const status = responseData?.status || 'UNKNOWN'; const isActive = status === 'MONITOR_STATUS_ACTIVE'; const schedule = responseData?.schedule?.quartz_cron_expression || 'Not configured'; const profileMetricsTable = responseData?.profile_metrics_table_name || 'Not configured'; const driftMetricsTable = responseData?.drift_metrics_table_name || 'Not configured'; const dashboardId = responseData?.dashboard_id || 'Not configured'; return { ...currentVariables, table_name: tableName, monitor_status: status, is_active: isActive, schedule: schedule, profile_metrics_table: profileMetricsTable, drift_metrics_table: driftMetricsTable, dashboard_id: dashboardId }; }"
+      "payload": {
+        "assets_dir": "/Workspace/Users/${user_name}/databricks_lakehouse_monitoring/${catalog_name}.bronze.demographics",
+        "output_schema_name": "${catalog_name}.bronze",
+        "time_series": {
+          "timestamp_col": "${timestamp_column}",
+          "granularities": ["30 minutes"]
+        }
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isCreated = statusCode === 200 || statusCode === 201; const monitorId = responseData?.monitor_id || null; const tableName = responseData?.table_name || currentVariables.catalog_name + '.bronze.demographics'; const assetsDir = responseData?.assets_dir || 'Not configured'; const outputSchema = responseData?.output_schema_name || 'Not configured'; const timestampCol = responseData?.time_series?.timestamp_col || 'Not configured'; const granularities = responseData?.time_series?.granularities || []; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists; return { ...currentVariables, monitor_created: success, monitor_id: monitorId, table_name: tableName, assets_dir: assetsDir, output_schema: outputSchema, timestamp_column: timestampCol, granularities: granularities, monitor_already_exists: alreadyExists, create_status_code: statusCode }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const driftStep = stepResults.check_drift_monitoring; const expected_result = 'Data drift monitoring is active and properly configured'; let actual_result = 'Data drift monitoring validation failed'; let status = 'fail'; let code = 'MONITORING_FAILED'; let message = 'Data drift monitoring validation failed'; if (driftStep.error) { if (driftStep.response_status === 404) { status = 'fail'; message = 'Data drift monitoring is not configured for table ' + variables.catalog_name + '.bronze.demographics'; code = 'MONITORING_NOT_CONFIGURED'; actual_result = 'Data drift monitoring is not configured for demographics table'; } else { status = 'error'; message = `Failed to check data drift monitoring: HTTP ${driftStep.response_status || 'Unknown'}`; code = `HTTP_${driftStep.response_status || 'UNKNOWN'}`; actual_result = `API call failed with status code ${driftStep.response_status || 'Unknown'}`; } } else { const isActive = variables.is_active || false; const monitorStatus = variables.monitor_status || 'UNKNOWN'; const tableName = variables.table_name || variables.catalog_name + '.bronze.demographics'; const schedule = variables.schedule || 'Not configured'; const profileMetricsTable = variables.profile_metrics_table || 'Not configured'; const driftMetricsTable = variables.drift_metrics_table || 'Not configured'; const dashboardId = variables.dashboard_id || 'Not configured'; if (isActive) { status = 'pass'; message = 'Data drift monitoring is active and properly configured'; code = 'MONITORING_ACTIVE'; actual_result = `Data drift monitoring active for ${tableName}. Schedule: ${schedule}. Metrics tables: ${profileMetricsTable}, ${driftMetricsTable}. Dashboard: ${dashboardId}`; } else { status = 'fail'; message = `Data drift monitoring is not active. Current status: ${monitorStatus}`; code = 'MONITORING_INACTIVE'; actual_result = `Data drift monitoring not active. Status: ${monitorStatus}. Expected: MONITOR_STATUS_ACTIVE`; } } return { status: status, message: message, code: code, test_id: 'OQ-110-1', title: 'Data Drift Monitoring Configuration', expected_result, actual_result }; }"
+  "parser_code": "function aggregateResults(stepResults) { const createStep = stepResults.create_drift_monitor; const expected_result = 'Data drift monitor created successfully for demographics table with time-series configuration'; let actual_result = 'Data drift monitor creation failed'; let status = 'fail'; let code = 'MONITOR_CREATION_FAILED'; let message = 'Data drift monitor creation failed'; if (createStep.error) { const statusCode = createStep.response_status || 'Unknown'; if (statusCode === 400 && variables.monitor_already_exists) { status = 'pass'; message = 'Data drift monitor already exists for demographics table'; code = 'MONITOR_ALREADY_EXISTS'; actual_result = `Data drift monitor already exists for ${variables.table_name}. Monitor ID: ${variables.monitor_id || 'N/A'}`; } else if (statusCode === 404) { status = 'fail'; message = 'Table not found or access denied'; code = 'TABLE_NOT_FOUND'; actual_result = `Table ${variables.catalog_name}.bronze.demographics not found or access denied`; } else if (statusCode === 403) { status = 'fail'; message = 'Insufficient permissions to create monitor'; code = 'INSUFFICIENT_PERMISSIONS'; actual_result = 'Insufficient permissions to create data drift monitor'; } else { status = 'error'; message = `Failed to create data drift monitor: HTTP ${statusCode}`; code = `HTTP_${statusCode}`; actual_result = `API call failed with status code ${statusCode}`; } } else { const isCreated = variables.monitor_created || false; const tableName = variables.table_name || variables.catalog_name + '.bronze.demographics'; const monitorId = variables.monitor_id || 'N/A'; const assetsDir = variables.assets_dir || 'Not configured'; const outputSchema = variables.output_schema || 'Not configured'; const timestampCol = variables.timestamp_column || 'Not configured'; const granularities = variables.granularities || []; if (isCreated) { status = 'pass'; message = 'Data drift monitor created successfully'; code = 'MONITOR_CREATED'; actual_result = `Data drift monitor created successfully for ${tableName}. Monitor ID: ${monitorId}. Assets dir: ${assetsDir}. Output schema: ${outputSchema}. Timestamp column: ${timestampCol}. Granularities: ${granularities.join(', ')}`; } else { status = 'fail'; message = 'Data drift monitor creation failed'; code = 'MONITOR_CREATION_FAILED'; actual_result = 'Data drift monitor creation failed - unexpected response'; } } return { status: status, message: message, code: code, test_id: 'OQ-110-1', title: 'Create Data Drift Monitor for Demographics Table', expected_result, actual_result }; }",
+  "manual_procedure": "Create data drift monitor for demographics table with time-series configuration using Lakehouse Monitoring API"
 } 
