@@ -32,7 +32,7 @@
         "Content-Type": "application/json"
       },
       "payload": {},
-      "post_processing": "async function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const success = statusCode === 204 || statusCode === 200; const deletedGroupId = currentVariables.group_id; const hasError = responseData && responseData.ERROR; const permissionDenied = statusCode === 403 || (responseData && responseData.detail && responseData.detail.toLowerCase().includes('permission')); if (success && !hasError) { console.log('Group deleted successfully, waiting 1 minute for propagation...'); await delay(60000); // 1 minute delay console.log('1 minute delay completed, proceeding with group creation...'); } return { ...currentVariables, delete_success: success && !hasError, delete_status_code: statusCode, delete_error: hasError ? responseData.ERROR.message : null, deleted_group_id: deletedGroupId, permission_denied: permissionDenied }; }"
+      "post_processing": "async function processStep(responseData, currentVariables, response) { const groupExists = currentVariables.group_exists; if (!groupExists) { console.log('No existing group to delete'); return { ...currentVariables, delete_skipped: true, delete_success: true }; } const statusCode = response && response.status ? response.status : 200; const success = statusCode === 204 || statusCode === 200; const deletedGroupId = currentVariables.group_id; const hasError = responseData && responseData.ERROR; const permissionDenied = statusCode === 403 || (responseData && responseData.detail && responseData.detail.toLowerCase().includes('permission')); if (success && !hasError) { console.log('Group deleted successfully, waiting 1 minute for propagation...'); await delay(60000); // 1 minute delay console.log('1 minute delay completed, proceeding with group creation...'); } return { ...currentVariables, delete_success: success && !hasError, delete_status_code: statusCode, delete_error: hasError ? responseData.ERROR.message : null, deleted_group_id: deletedGroupId, permission_denied: permissionDenied }; }"
     },
     {
       "step": 3,
@@ -46,7 +46,7 @@
       "payload": {
         "filter": "displayName eq \"TEMP_${catalog_name}_OQ105\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const resources = responseData.Resources || []; const groupStillExists = resources.length > 0; const deletedGroupId = currentVariables.deleted_group_id; const foundDeletedGroup = resources.find(group => group.id === deletedGroupId); const deletionVerified = !groupStillExists || !foundDeletedGroup; return { ...currentVariables, deletion_verified: deletionVerified }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const groupExists = currentVariables.group_exists; if (!groupExists) { return { ...currentVariables, deletion_verified: true }; } const resources = responseData.Resources || []; const groupStillExists = resources.length > 0; const deletedGroupId = currentVariables.deleted_group_id; const foundDeletedGroup = resources.find(group => group.id === deletedGroupId); const deletionVerified = !groupStillExists || !foundDeletedGroup; return { ...currentVariables, deletion_verified: deletionVerified }; }"
     },
     {
       "step": 4,
