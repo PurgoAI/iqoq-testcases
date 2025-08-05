@@ -1,26 +1,249 @@
 {
-  "title": "MarketPlace Package Availability",
-  "test_description": "Validates that the Databricks MarketPlace is accessible and required packages are available for collaboration features",
+  "title": "Git Integration Commit/Rollback Test - Version History Validation",
+  "test_description": "Complete Git integration commit/rollback testing including repository creation, multiple commits, rollback to previous commit, sync validation, and version history verification. Tests the entire Git commit/rollback workflow with version history maintenance.",
   "version": "1.0",
   "test_code": "OQ-108-2",
-  "manual_procedure": "Check MarketPlace package availability",
   "test_seq": 2,
   "test_suite": "OQ-108",
-  "test_suite_title": "Collaboration Features",
+  "test_suite_title": "Git Integration Commit/Rollback",
   "category": "OQ",
   "api_calls": [
     {
       "step": 1,
-      "name": "check_marketplace_packages",
+      "name": "get_current_user",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/marketplace/packages",
+      "api_url": "${workspace_url}/api/2.0/preview/scim/v2/Me",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const packages = responseData?.packages || []; const packageCount = packages.length; const hasPackages = packageCount > 0; const packageNames = packages.slice(0, 5).map(pkg => pkg.name || pkg.title || 'Unknown').join(', '); return { ...currentVariables, package_count: packageCount, has_packages: hasPackages, package_names: packageNames }; }"
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const userName = responseData.userName || 'validation-user'; const currentTimestamp = Date.now().toString(); const repoUrl = currentVariables.repo_url || ''; let gitRepoOwner = ''; let gitRepoName = ''; if (repoUrl) { const urlParts = repoUrl.replace('https://github.com/', '').split('/'); if (urlParts.length >= 2) { gitRepoOwner = urlParts[0]; gitRepoName = urlParts[1]; } } return { ...currentVariables, user_name: userName, current_timestamp: currentTimestamp, git_repo_owner: gitRepoOwner, git_repo_name: gitRepoName }; }"
+    },
+    {
+      "step": 2,
+      "name": "check_existing_credentials",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const credentials = responseData.credentials || []; let existingCredentialId = null; let hasCredentials = credentials.length > 0; if (hasCredentials) { for (let i = 0; i < credentials.length; i++) { const cred = credentials[i]; if (cred && cred.git_provider && cred.git_username && cred.git_provider.toLowerCase() === currentVariables.git_provider.toLowerCase() && cred.git_username === currentVariables.git_username) { existingCredentialId = cred.credential_id; break; } } if (!existingCredentialId && credentials.length > 0) { existingCredentialId = credentials[0].credential_id; } } return { ...currentVariables, has_credentials: hasCredentials, existing_credential_id: existingCredentialId, credentials_count: credentials.length }; }"
+    },
+    {
+      "step": 3,
+      "name": "create_or_update_credentials",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/git-credentials",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "git_provider": "${git_provider}",
+        "git_username": "${git_username}",
+        "personal_access_token": "${personal_access_token}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const credentialId = responseData?.credential_id || currentVariables.existing_credential_id; const statusCode = response && response.status ? response.status : 200; const isUpdate = currentVariables.has_credentials && currentVariables.existing_credential_id; const isCreated = statusCode === 200 && credentialId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || isUpdate || alreadyExists; return { ...currentVariables, credential_id: credentialId, credentials_created: success, credentials_updated: isUpdate, credentials_already_exist: alreadyExists, credential_operation_success: success }; }"
+    },
+    {
+      "step": 4,
+      "name": "create_repository_for_rollback_test",
+      "method": "POST",
+      "api_url": "${workspace_url}/api/2.0/repos",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "url": "${repo_url}",
+        "provider": "${git_provider}",
+        "path": "/Users/${user_name}/git-rollback-test-${current_timestamp}",
+        "branch": "main",
+        "sparse_checkout": {
+          "patterns": [
+            "src",
+            "test",
+            "docs"
+          ]
+        }
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const repoId = responseData?.id || null; const repoPath = responseData?.path || null; const isCreated = statusCode === 200 && repoId; const alreadyExists = statusCode === 400 && (responseData?.message || '').toLowerCase().includes('already exists'); const success = isCreated || alreadyExists; return { ...currentVariables, repo_id: repoId, repo_path: repoPath, repo_created: isCreated, repo_already_exists: alreadyExists, repo_operation_success: success }; }"
+    },
+    {
+      "step": 5,
+      "name": "create_initial_file_commit",
+      "method": "PUT",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/initial-file-${current_timestamp}.txt",
+      "headers": {
+        "Authorization": "Bearer ${personal_access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "message": "Initial commit for rollback test - ${current_timestamp}",
+        "content": "SW5pdGlhbCBmaWxlIGNvbnRlbnQgZm9yIHJvbGxiYWNrIHRlc3QuIENyZWF0ZWQgYXQ6ICR7Y3VycmVudF90aW1lc3RhbXB9",
+        "branch": "main",
+        "author": {
+          "name": "Databricks Test User",
+          "email": "${git_username}"
+        }
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isUploaded = statusCode === 200 || statusCode === 201; const fileSha = responseData?.content?.sha || null; const filePath = responseData?.content?.path || null; const commitSha = responseData?.commit?.sha || null; const initialCommitSha = commitSha; return { ...currentVariables, initial_file_uploaded: isUploaded, initial_file_sha: fileSha, initial_file_path: filePath, initial_commit_sha: initialCommitSha, upload_status_code: statusCode }; }"
+    },
+    {
+      "step": 6,
+      "name": "sync_initial_commit",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "branch": "main"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; if (!success) { return { ...currentVariables, initial_sync_triggered: false }; } const initialFileName = currentVariables.initial_file_path ? currentVariables.initial_file_path.split('/').pop() : null; if (!initialFileName) { return { ...currentVariables, initial_sync_triggered: success, initial_sync_completed: false, initial_polling_completed: true, initial_file_found: false }; } const startTime = Date.now(); const pollInterval = 10000; let pollAttempts = 0; const maxAttempts = 12; while (pollAttempts < maxAttempts) { pollAttempts++; try { const response = await axios.get(`${currentVariables.workspace_url}/api/2.0/workspace/list`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' }, params: { path: currentVariables.repo_path } }); const objects = response.data.objects || []; const fileFound = initialFileName ? objects.some(obj => obj.path && obj.path.includes(initialFileName)) : false; if (fileFound) { const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, initial_sync_triggered: success, initial_sync_completed: true, initial_polling_completed: true, initial_poll_attempts: pollAttempts, initial_sync_time_seconds: elapsedTime, initial_file_found: true }; } else { if (pollAttempts < maxAttempts) { try { await axios.patch(`${currentVariables.workspace_url}/api/2.0/repos/${currentVariables.repo_id}`, { branch: 'main' }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); } catch (syncError) { } await delay(pollInterval); } } } catch (error) { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, initial_sync_triggered: success, initial_sync_completed: false, initial_polling_completed: true, initial_poll_attempts: maxAttempts, initial_polling_timeout: true, initial_sync_time_seconds: elapsedTime, initial_file_found: false }; }"
+    },
+    {
+      "step": 7,
+      "name": "create_second_commit",
+      "method": "PUT",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/second-file-${current_timestamp}.txt",
+      "headers": {
+        "Authorization": "Bearer ${personal_access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "message": "Second commit for rollback test - ${current_timestamp}",
+        "content": "U2Vjb25kIGZpbGUgY29udGVudCBmb3Igcm9sbGJhY2sgdGVzdC4gQ3JlYXRlZCBhdDogJHtjdXJyZW50X3RpbWVzdGFtcH0=",
+        "branch": "main",
+        "author": {
+          "name": "Databricks Test User",
+          "email": "${git_username}"
+        }
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isUploaded = statusCode === 200 || statusCode === 201; const fileSha = responseData?.content?.sha || null; const filePath = responseData?.content?.path || null; const commitSha = responseData?.commit?.sha || null; const secondCommitSha = commitSha; return { ...currentVariables, second_file_uploaded: isUploaded, second_file_sha: fileSha, second_file_path: filePath, second_commit_sha: secondCommitSha, second_upload_status_code: statusCode }; }"
+    },
+    {
+      "step": 8,
+      "name": "sync_second_commit",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "branch": "main"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; if (!success) { return { ...currentVariables, second_sync_triggered: false }; } const secondFileName = currentVariables.second_file_path ? currentVariables.second_file_path.split('/').pop() : null; if (!secondFileName) { return { ...currentVariables, second_sync_triggered: success, second_sync_completed: false, second_polling_completed: true, second_file_found: false }; } const startTime = Date.now(); const pollInterval = 10000; let pollAttempts = 0; const maxAttempts = 12; while (pollAttempts < maxAttempts) { pollAttempts++; try { const response = await axios.get(`${currentVariables.workspace_url}/api/2.0/workspace/list`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' }, params: { path: currentVariables.repo_path } }); const objects = response.data.objects || []; const fileFound = secondFileName ? objects.some(obj => obj.path && obj.path.includes(secondFileName)) : false; if (fileFound) { const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, second_sync_triggered: success, second_sync_completed: true, second_polling_completed: true, second_poll_attempts: pollAttempts, second_sync_time_seconds: elapsedTime, second_file_found: true }; } else { if (pollAttempts < maxAttempts) { try { await axios.patch(`${currentVariables.workspace_url}/api/2.0/repos/${currentVariables.repo_id}`, { branch: 'main' }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); } catch (syncError) { } await delay(pollInterval); } } } catch (error) { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, second_sync_triggered: success, second_sync_completed: false, second_polling_completed: true, second_poll_attempts: maxAttempts, second_polling_timeout: true, second_sync_time_seconds: elapsedTime, second_file_found: false }; }"
+    },
+    {
+      "step": 9,
+      "name": "rollback_to_initial_commit",
+      "method": "POST",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/git/refs",
+      "headers": {
+        "Authorization": "Bearer ${personal_access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "ref": "refs/heads/rollback-branch-${current_timestamp}",
+        "sha": "${initial_commit_sha}"
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isRollbackBranchCreated = statusCode === 200 || statusCode === 201; const rollbackBranchRef = responseData?.ref || null; const rollbackBranchSha = responseData?.object?.sha || null; return { ...currentVariables, rollback_branch_created: isRollbackBranchCreated, rollback_branch_ref: rollbackBranchRef, rollback_branch_sha: rollbackBranchSha, rollback_status_code: statusCode }; }"
+    },
+    {
+      "step": 10,
+      "name": "force_push_rollback_to_main",
+      "method": "PATCH",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/git/refs/heads/main",
+      "headers": {
+        "Authorization": "Bearer ${personal_access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "sha": "${initial_commit_sha}",
+        "force": true
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isRollbackCompleted = statusCode === 200; const rollbackCommitSha = responseData?.object?.sha || null; return { ...currentVariables, rollback_completed: isRollbackCompleted, rollback_commit_sha: rollbackCommitSha, force_push_status_code: statusCode }; }"
+    },
+    {
+      "step": 11,
+      "name": "sync_after_rollback",
+      "method": "PATCH",
+      "api_url": "${workspace_url}/api/2.0/repos/${repo_id}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "branch": "main"
+      },
+      "post_processing": "async function processStep(responseData, currentVariables) { const success = responseData?.id ? true : false; if (!success) { return { ...currentVariables, rollback_sync_triggered: false }; } const initialFileName = currentVariables.initial_file_path ? currentVariables.initial_file_path.split('/').pop() : null; const secondFileName = currentVariables.second_file_path ? currentVariables.second_file_path.split('/').pop() : null; if (!initialFileName) { return { ...currentVariables, rollback_sync_triggered: success, rollback_sync_completed: false, rollback_polling_completed: true, rollback_validation_failed: true }; } const startTime = Date.now(); const pollInterval = 10000; let pollAttempts = 0; const maxAttempts = 15; while (pollAttempts < maxAttempts) { pollAttempts++; try { const response = await axios.get(`${currentVariables.workspace_url}/api/2.0/workspace/list`, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' }, params: { path: currentVariables.repo_path } }); const objects = response.data.objects || []; const initialFileFound = initialFileName ? objects.some(obj => obj.path && obj.path.includes(initialFileName)) : false; const secondFileFound = secondFileName ? objects.some(obj => obj.path && obj.path.includes(secondFileName)) : false; const rollbackSuccessful = initialFileFound && !secondFileFound; if (rollbackSuccessful) { const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, rollback_sync_triggered: success, rollback_sync_completed: true, rollback_polling_completed: true, rollback_poll_attempts: pollAttempts, rollback_sync_time_seconds: elapsedTime, rollback_validation_successful: true, initial_file_after_rollback: initialFileFound, second_file_after_rollback: secondFileFound }; } else { if (pollAttempts < maxAttempts) { try { await axios.patch(`${currentVariables.workspace_url}/api/2.0/repos/${currentVariables.repo_id}`, { branch: 'main' }, { headers: { 'Authorization': `Bearer ${currentVariables.token}`, 'Content-Type': 'application/json' } }); } catch (syncError) { } await delay(pollInterval); } } } catch (error) { if (pollAttempts < maxAttempts) { await delay(pollInterval); } } } const elapsedTime = (Date.now() - startTime) / 1000; return { ...currentVariables, rollback_sync_triggered: success, rollback_sync_completed: false, rollback_polling_completed: true, rollback_poll_attempts: maxAttempts, rollback_polling_timeout: true, rollback_sync_time_seconds: elapsedTime, rollback_validation_successful: false }; }"
+    },
+    {
+      "step": 12,
+      "name": "validate_version_history",
+      "method": "GET",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/commits",
+      "headers": {
+        "Authorization": "Bearer ${personal_access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const commits = responseData || []; const commitCount = commits.length; const hasVersionHistory = commitCount > 0; const commitShas = commits.map(commit => commit.sha).slice(0, 5); const commitMessages = commits.map(commit => commit.commit.message).slice(0, 5); const initialCommitInHistory = commits.some(commit => commit.sha === currentVariables.initial_commit_sha); const secondCommitInHistory = commits.some(commit => commit.sha === currentVariables.second_commit_sha); const rollbackCommitInHistory = commits.some(commit => commit.sha === currentVariables.rollback_commit_sha); const versionHistoryMaintained = hasVersionHistory && initialCommitInHistory && secondCommitInHistory && rollbackCommitInHistory; return { ...currentVariables, version_history_maintained: versionHistoryMaintained, commit_count: commitCount, commit_shas: commitShas, commit_messages: commitMessages, initial_commit_in_history: initialCommitInHistory, second_commit_in_history: secondCommitInHistory, rollback_commit_in_history: rollbackCommitInHistory }; }"
+    },
+    {
+      "step": 13,
+      "name": "cleanup_test_files",
+      "method": "DELETE",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/initial-file-${current_timestamp}.txt",
+      "headers": {
+        "Authorization": "Bearer ${personal_access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      "payload": {
+        "message": "Cleanup: Remove test files after rollback validation - ${current_timestamp}",
+        "sha": "${initial_file_sha}",
+        "branch": "main",
+        "committer": {
+          "name": "Databricks Test User",
+          "email": "${git_username}"
+        }
+      },
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 200; const isDeleted = statusCode === 200; const cleanupCommitSha = responseData?.commit?.sha || null; return { ...currentVariables, initial_file_deleted: isDeleted, cleanup_commit_sha: cleanupCommitSha, cleanup_status_code: statusCode }; }"
+    },
+    {
+      "step": 14,
+      "name": "delete_rollback_branch",
+      "method": "DELETE",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/git/refs/heads/rollback-branch-${current_timestamp}",
+      "headers": {
+        "Authorization": "Bearer ${personal_access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables, response) { const statusCode = response && response.status ? response.status : 204; const isBranchDeleted = statusCode === 204; return { ...currentVariables, rollback_branch_deleted: isBranchDeleted, branch_deletion_status_code: statusCode }; }"
     }
   ],
   "response_schema": null,
-  "parser_code": "function aggregateResults(stepResults) { const marketplaceStep = stepResults.check_marketplace_packages; const expected_result = 'Required packages available'; let actual_result = 'MarketPlace access failed'; if (marketplaceStep.error) { return { status: 'pass', message: 'Required packages available (assumed)', code: 'MARKETPLACE_PACKAGES_AVAILABLE', test_id: 'OQ-108-2', title: 'MarketPlace Package Availability', expected_result, actual_result: 'MarketPlace API not available, assuming packages available' }; } const packageCount = variables.package_count || 0; const hasPackages = variables.has_packages || false; const packageNames = variables.package_names || ''; if (hasPackages) { actual_result = `Found ${packageCount} packages: ${packageNames}`; return { status: 'pass', message: actual_result, code: 'MARKETPLACE_PACKAGES_AVAILABLE', test_id: 'OQ-108-2', title: 'MarketPlace Package Availability', expected_result, actual_result }; } else { actual_result = 'MarketPlace accessible but no packages found'; return { status: 'pass', message: actual_result, code: 'MARKETPLACE_ACCESSIBLE_NO_PACKAGES', test_id: 'OQ-108-2', title: 'MarketPlace Package Availability', expected_result, actual_result }; } }"
-} 
+  "parser_code": "function aggregateResults(stepResults) { const userStep = stepResults.get_current_user; const credentialsStep = stepResults.check_existing_credentials; const createCredentialsStep = stepResults.create_or_update_credentials; const createRepoStep = stepResults.create_repository_for_rollback_test; const initialCommitStep = stepResults.create_initial_file_commit; const initialSyncStep = stepResults.sync_initial_commit; const secondCommitStep = stepResults.create_second_commit; const secondSyncStep = stepResults.sync_second_commit; const rollbackStep = stepResults.rollback_to_initial_commit; const forcePushStep = stepResults.force_push_rollback_to_main; const rollbackSyncStep = stepResults.sync_after_rollback; const versionHistoryStep = stepResults.validate_version_history; const cleanupStep = stepResults.cleanup_test_files; const branchCleanupStep = stepResults.delete_rollback_branch; const expected_result = 'Complete Git commit/rollback test: repository created, multiple commits made, rollback to previous commit successful, sync validated, version history maintained, and cleanup completed'; let actual_result = 'Git commit/rollback test not completed'; if (!userStep || !userStep.data || !userStep.data.userName) { actual_result = 'Failed to get user information.'; return { status: 'fail', message: actual_result, code: 'GET_USER_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!createCredentialsStep || !createCredentialsStep.data || !variables.credential_operation_success) { actual_result = 'Failed to create or verify Git credentials.'; return { status: 'fail', message: actual_result, code: 'CREDENTIALS_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!createRepoStep || !createRepoStep.data || !variables.repo_operation_success) { actual_result = 'Failed to create repository for rollback test.'; return { status: 'fail', message: actual_result, code: 'REPO_CREATION_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!initialCommitStep || !initialCommitStep.data || !variables.initial_file_uploaded) { actual_result = 'Failed to create initial commit.'; return { status: 'fail', message: actual_result, code: 'INITIAL_COMMIT_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!initialSyncStep || !initialSyncStep.data || !variables.initial_sync_triggered) { actual_result = 'Failed to sync initial commit.'; return { status: 'fail', message: actual_result, code: 'INITIAL_SYNC_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!secondCommitStep || !secondCommitStep.data || !variables.second_file_uploaded) { actual_result = 'Failed to create second commit.'; return { status: 'fail', message: actual_result, code: 'SECOND_COMMIT_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!secondSyncStep || !secondSyncStep.data || !variables.second_sync_triggered) { actual_result = 'Failed to sync second commit.'; return { status: 'fail', message: actual_result, code: 'SECOND_SYNC_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!rollbackStep || !rollbackStep.data || !variables.rollback_branch_created) { actual_result = 'Failed to create rollback branch.'; return { status: 'fail', message: actual_result, code: 'ROLLBACK_BRANCH_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!forcePushStep || !forcePushStep.data || !variables.rollback_completed) { actual_result = 'Failed to force push rollback to main branch.'; return { status: 'fail', message: actual_result, code: 'FORCE_PUSH_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!rollbackSyncStep || !rollbackSyncStep.data || !variables.rollback_sync_triggered) { actual_result = 'Failed to trigger sync after rollback.'; return { status: 'fail', message: actual_result, code: 'ROLLBACK_SYNC_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!variables.rollback_polling_completed) { actual_result = 'Failed to complete rollback sync polling.'; return { status: 'fail', message: actual_result, code: 'ROLLBACK_POLLING_INCOMPLETE', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (!versionHistoryStep || !versionHistoryStep.data || !variables.version_history_maintained) { actual_result = 'Failed to validate version history maintenance.'; return { status: 'fail', message: actual_result, code: 'VERSION_HISTORY_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } if (variables.rollback_validation_successful) { const initialSyncTime = variables.initial_sync_time_seconds || 0; const secondSyncTime = variables.second_sync_time_seconds || 0; const rollbackSyncTime = variables.rollback_sync_time_seconds || 0; const totalSyncTime = initialSyncTime + secondSyncTime + rollbackSyncTime; const commitCount = variables.commit_count || 0; const cleanupStatus = variables.initial_file_deleted ? ' and cleanup completed' : ' (cleanup failed)'; actual_result = `Complete Git commit/rollback test successful: repository created, 2 commits made, rollback to initial commit successful, sync validated (total sync time: ${totalSyncTime.toFixed(2)}s), version history maintained (${commitCount} commits)${cleanupStatus}.`; return { status: 'pass', message: 'Git commit/rollback test completed successfully with version history validation', code: 'COMMIT_ROLLBACK_VALIDATED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } else { const rollbackSyncTime = variables.rollback_sync_time_seconds || 0; const pollAttempts = variables.rollback_poll_attempts || 0; if (variables.rollback_polling_timeout) { actual_result = `Git commit/rollback test completed but rollback validation failed within time limit (${rollbackSyncTime.toFixed(2)} seconds after ${pollAttempts} polling attempts).`; return { status: 'fail', message: actual_result, code: 'ROLLBACK_VALIDATION_TIMEOUT', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } else { actual_result = `Git commit/rollback test completed - commits created and rollback initiated, but validation failed. Sync time: ${rollbackSyncTime.toFixed(2)} seconds.`; return { status: 'fail', message: actual_result, code: 'ROLLBACK_VALIDATION_FAILED', test_id: 'OQ-108-2', title: 'Git Integration Commit/Rollback Test - Version History Validation', expected_result, actual_result }; } } }",
+  "manual_procedure": "Get user info, check existing Git credentials, create or update Git credentials, create repository with timestamp, create initial file commit and sync, create second file commit and sync, rollback to initial commit using force push, sync after rollback and validate file state, check version history maintenance, cleanup test files and delete rollback branch."
+}
