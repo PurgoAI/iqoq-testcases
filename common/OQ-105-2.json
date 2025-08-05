@@ -46,7 +46,7 @@
       "payload": {
         "filter": "displayName eq \"TEMP_${catalog_name}_OQ105\""
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const groupExists = currentVariables.group_exists; if (!groupExists) { return { ...currentVariables, deletion_verified: true }; } const resources = responseData.Resources || []; const groupStillExists = resources.length > 0; const deletedGroupId = currentVariables.deleted_group_id; const foundDeletedGroup = resources.find(group => group.id === deletedGroupId); const deletionVerified = !groupStillExists || !foundDeletedGroup; return { ...currentVariables, deletion_verified: deletionVerified }; }"
+      "post_processing": "async function processStep(responseData, currentVariables) { const groupExists = currentVariables.group_exists; if (!groupExists) { return { ...currentVariables, deletion_verified: true }; } const resources = responseData.Resources || []; const groupStillExists = resources.length > 0; const deletedGroupId = currentVariables.deleted_group_id; const foundDeletedGroup = resources.find(group => group.id === deletedGroupId); const deletionVerified = !groupStillExists || !foundDeletedGroup; if (deletionVerified) { console.log('Group deletion verified, waiting 45 seconds before creating new group...'); await delay(45000); } return { ...currentVariables, deletion_verified: deletionVerified }; }"
     },
     {
       "step": 4,
