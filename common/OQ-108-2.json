@@ -196,7 +196,7 @@
       "step": 12,
       "name": "validate_version_history",
       "method": "GET",
-      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/commits",
+      "api_url": "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/commits?per_page=5",
       "headers": {
         "Authorization": "Bearer ${personal_access_token}",
         "Accept": "application/vnd.github+json",
