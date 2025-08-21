@@ -31,7 +31,7 @@
       },
       "payload": {
         "warehouse_id": "${warehouse_id}",
-        "statement": "INSERT INTO ${catalog_name}.silver.sdtm_dm (patient_id, test_column) VALUES ('TEST_PATIENT_IQ105', 'test_value');",
+        "statement": "INSERT INTO ${catalog_name}.silver.sdtm_dm_masked (patient_id, test_column) VALUES ('TEST_PATIENT_IQ105', 'test_value');",
         "wait_timeout": "30s"
       },
       "post_processing": "function processStep(responseData, currentVariables) { return currentVariables; }"
