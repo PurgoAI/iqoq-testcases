@@ -51,7 +51,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "ALTER SHARE test_data_share_${catalog_name} ADD TABLE ${catalog_name}.silver.sdtm_dm_masked WITH HISTORY",
+        "statement": "ALTER SHARE test_data_share_${catalog_name} ADD TABLE ${catalog_name}.default.test WITH HISTORY",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -71,7 +71,7 @@
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const hasObjects = dataArray && dataArray.length > 0; const objectCount = hasObjects ? dataArray.length : 0; const objectNames = hasObjects ? dataArray.map(row => row[0] || 'Unknown').join(', ') : ''; const targetTableExists = dataArray.some(row => row[0] === 'sdtm_dm_masked'); return { ...currentVariables, has_objects: hasObjects, object_count: objectCount, object_names: objectNames, target_table_exists: targetTableExists }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const hasObjects = dataArray && dataArray.length > 0; const objectCount = hasObjects ? dataArray.length : 0; const objectNames = hasObjects ? dataArray.map(row => row[0] || 'Unknown').join(', ') : ''; const targetTableExists = dataArray.some(row => row[0] === 'test'); return { ...currentVariables, has_objects: hasObjects, object_count: objectCount, object_names: objectNames, target_table_exists: targetTableExists }; }"
     }
   ],
   "response_schema": null,
