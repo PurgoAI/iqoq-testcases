@@ -6,6 +6,7 @@
   "test_seq": 2,
   "test_suite": "IQ-102",
   "test_suite_title": "Unity Catalog Configuration",
+  "test_suite_type": "Security",
   "category": "IQ",
   "api_calls": [
     {

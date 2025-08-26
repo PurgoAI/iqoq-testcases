@@ -6,6 +6,7 @@
   "test_seq": 1,
   "test_suite": "IQ-107",
   "test_suite_title": "Network Configuration",
+  "test_suite_type": "Network",
   "category": "IQ",
   "api_calls": [
     {

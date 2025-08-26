@@ -24,7 +24,7 @@
       "step": 2,
       "name": "list_secrets_in_scope",
       "method": "GET",
-      "api_url": "${workspace_url}/api/2.0/secrets/list?scope=${scope_name}",
+      "api_url": "${workspace_url}/api/2.0/secrets/list?scope=${effective_scope_name}",
       "headers": {
         "Authorization": "Bearer ${token}",
         "Content-Type": "application/json"

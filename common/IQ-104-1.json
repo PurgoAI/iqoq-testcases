@@ -6,6 +6,7 @@
   "test_seq": 1,
   "test_suite": "IQ-104",
   "test_suite_title": "Cluster Configuration",
+  "test_suite_type": "Workspace",
   "category": "IQ",
   "api_calls": [
     {
