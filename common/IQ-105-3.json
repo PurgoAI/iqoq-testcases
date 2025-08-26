@@ -6,7 +6,7 @@
   "test_seq": 2,
   "test_suite": "IQ-105",
   "test_suite_title": "Data Storage Validation",
-  "test_suite_type": "Security",
+
   "category": "IQ",
   "api_calls": [
     {

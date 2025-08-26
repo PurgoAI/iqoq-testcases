@@ -6,6 +6,7 @@
   "test_seq": 2,
   "test_suite": "IQ-108",
   "test_suite_title": "Git Connection Validation",
+  "test_suite_type": "Workspace",
   "category": "IQ",
   "api_calls": [
     {
