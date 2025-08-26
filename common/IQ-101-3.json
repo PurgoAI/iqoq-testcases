@@ -6,7 +6,7 @@
   "test_seq": 3,
   "test_suite": "IQ-101",
   "test_suite_title": "Databricks Workspace Setup",
-  "test_suite_type": "Workspace",
+  "test_type": "Workspace",
   "category": "IQ",
   "api_calls": [
     {

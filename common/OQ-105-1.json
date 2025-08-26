@@ -6,7 +6,7 @@
   "test_seq": 1,
   "test_suite": "OQ-105",
   "test_suite_title": "Data Governance",
-  "test_suite_type": "Security",
+
   "category": "OQ",
   "api_calls": [
     {

@@ -7,7 +7,7 @@
   "test_seq": 2,
   "test_suite": "OQ-112",
   "test_suite_title": "Delta Sharing",
-  "test_suite_type": "Security",
+
   "category": "OQ",
   "api_calls": [
     {
