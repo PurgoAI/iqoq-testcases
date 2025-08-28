@@ -36,7 +36,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "CREATE RECIPIENT test_partner_company COMMENT 'Test external data consumer'",
+        "statement": "CREATE RECIPIENT ${workspace_name}_partner COMMENT 'Test external data consumer'",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -52,7 +52,7 @@
         "Content-Type": "application/json"
       },
       "payload": {
-        "statement": "GRANT SELECT ON SHARE test_data_share_${catalog_name} TO RECIPIENT test_partner_company",
+        "statement": "GRANT SELECT ON SHARE test_data_share_${catalog_name} TO RECIPIENT ${workspace_name}_partner",
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
@@ -72,7 +72,7 @@
         "warehouse_id": "${warehouse_id}",
         "wait_timeout": "30s"
       },
-      "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const testRecipientExists = dataArray.some(row => row[0] === 'test_partner_company'); const recipientCount = dataArray.length; return { ...currentVariables, test_recipient_exists: testRecipientExists, total_recipient_count: recipientCount }; }"
+              "post_processing": "function processStep(responseData, currentVariables) { const dataArray = responseData?.result?.data_array || []; const testRecipientExists = dataArray.some(row => row[0] === currentVariables.workspace_name + '_partner'); const recipientCount = dataArray.length; return { ...currentVariables, test_recipient_exists: testRecipientExists, total_recipient_count: recipientCount }; }"
     }
   ],
   "response_schema": null,
