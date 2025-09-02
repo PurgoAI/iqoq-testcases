@@ -25,7 +25,7 @@
       "step": 2,
       "name": "check_storage_encryption",
       "method": "GET",
-      "api_url": "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Storage/storageAccounts?api-version=2022-09-01",
+      "api_url": "https://management.azure.com/${managed_resource_group}/providers/Microsoft.Storage/storageAccounts?api-version=2022-09-01",
       "headers": {
         "Authorization": "Bearer ${azure_token}",
         "Content-Type": "application/json"
