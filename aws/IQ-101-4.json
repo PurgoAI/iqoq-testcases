@@ -1,0 +1,74 @@
+{
+  "title": "Databricks Workspace Storage Configuration",
+  "test_description": "Validate that the Databricks workspace DBFS root bucket and cross-account IAM role are properly configured with required permissions",
+  "version": "1.0",
+  "test_code": "IQ-101-4",
+  "test_seq": 4,
+  "test_suite": "IQ-101",
+  "test_suite_title": "Workspace Configuration",
+  "test_type": "Configuration",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_s3_bucket_exists",
+      "method": "GET",
+      "api_url": "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const bucketExists = !responseData.error; const bucketName = currentVariables.dbfs_root_bucket; return { ...currentVariables, bucket_exists: bucketExists, bucket_name: bucketName }; }"
+    },
+    {
+      "step": 2,
+      "name": "check_bucket_location",
+      "method": "GET",
+      "api_url": "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?location",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const locationConstraint = responseData?.LocationConstraint || currentVariables.aws_region; const bucketRegion = locationConstraint === '' ? 'us-east-1' : locationConstraint; return { ...currentVariables, bucket_region: bucketRegion, region_match: bucketRegion === currentVariables.aws_region }; }"
+    },
+    {
+      "step": 3,
+      "name": "check_cross_account_role",
+      "method": "POST",
+      "api_url": "https://iam.amazonaws.com/",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "iam.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}",
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      "payload": "Action=GetRole&RoleName=${cross_account_role_name}&Version=2010-05-08",
+      "post_processing": "function processStep(responseData, currentVariables) { const role = responseData?.GetRoleResponse?.GetRoleResult?.Role; const roleExists = !!role; const roleName = role?.RoleName; const roleArn = role?.Arn; const createDate = role?.CreateDate; const trustPolicyDoc = role?.AssumeRolePolicyDocument; let hasDatabricksAccess = false; if (trustPolicyDoc) { try { const policy = JSON.parse(decodeURIComponent(trustPolicyDoc)); hasDatabricksAccess = policy.Statement?.some(stmt => { const principals = Array.isArray(stmt.Principal?.AWS) ? stmt.Principal.AWS : [stmt.Principal?.AWS]; return principals.some(p => p && p.includes(currentVariables.databricks_principal_account_id)); }); } catch (e) { } } return { ...currentVariables, cross_account_role_exists: roleExists, cross_account_role_name: roleName, cross_account_role_arn: roleArn, cross_account_role_created: createDate, has_databricks_access: hasDatabricksAccess }; }"
+    },
+    {
+      "step": 4,
+      "name": "check_role_policies",
+      "method": "POST",
+      "api_url": "https://iam.amazonaws.com/",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "iam.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}",
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      "payload": "Action=ListAttachedRolePolicies&RoleName=${cross_account_role_name}&Version=2010-05-08",
+      "post_processing": "function processStep(responseData, currentVariables) { const attachedPolicies = responseData?.ListAttachedRolePoliciesResponse?.ListAttachedRolePoliciesResult?.AttachedPolicies?.member || []; const policies = Array.isArray(attachedPolicies) ? attachedPolicies : [attachedPolicies]; const policyCount = policies.length; const policyNames = policies.map(p => p?.PolicyName).filter(Boolean); const hasS3Access = policyNames.some(name => name && (name.toLowerCase().includes('s3') || name.toLowerCase().includes('databricks'))); return { ...currentVariables, attached_policy_count: policyCount, attached_policy_names: policyNames, has_s3_policy: hasS3Access }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const bucketStep = stepResults.check_s3_bucket_exists; const locationStep = stepResults.check_bucket_location; const roleStep = stepResults.check_cross_account_role; const policyStep = stepResults.check_role_policies; const expected_result = 'Workspace: DBFS bucket accessible, IAM role configured'; let actual_result = 'Workspace: Not configured'; const bucketExists = variables.bucket_exists || false; const bucketRegion = variables.bucket_region || 'unknown'; const regionMatch = variables.region_match || false; const roleExists = variables.cross_account_role_exists || false; const hasDatabricksAccess = variables.has_databricks_access || false; const policyCount = variables.attached_policy_count || 0; const hasS3Policy = variables.has_s3_policy || false; const validationNotes = []; if (bucketStep.status === 200 || bucketStep.status === 403) { if (bucketExists || bucketStep.status === 403) { validationNotes.push('DBFS S3 bucket exists and is accessible'); if (regionMatch) { validationNotes.push(`Bucket region (${bucketRegion}) matches workspace region`); } else { validationNotes.push(`Bucket region (${bucketRegion}) differs from workspace region`); } } else { validationNotes.push('DBFS S3 bucket not found or not accessible'); } } else { validationNotes.push('DBFS S3 bucket check failed'); } if (roleStep.status === 200) { if (roleExists) { validationNotes.push('Cross-account IAM role exists'); if (hasDatabricksAccess) { validationNotes.push('IAM role has Databricks trust relationship'); } else { validationNotes.push('IAM role missing Databricks trust relationship'); } } else { validationNotes.push('Cross-account IAM role not found'); } } else { validationNotes.push('Cross-account IAM role check failed'); } if (policyStep.status === 200) { if (policyCount > 0) { validationNotes.push(`IAM role has ${policyCount} attached policies`); if (hasS3Policy) { validationNotes.push('IAM role has S3/Databricks access policies'); } else { validationNotes.push('IAM role missing S3/Databricks access policies'); } } else { validationNotes.push('IAM role has no attached policies'); } } else { validationNotes.push('IAM role policy check failed'); } const criticalChecks = [bucketExists || bucketStep.status === 403, roleExists, hasDatabricksAccess]; const passedCritical = criticalChecks.filter(Boolean).length; const totalCritical = criticalChecks.length; if (passedCritical >= 2) { actual_result = `Workspace: DBFS bucket accessible, IAM role configured (${passedCritical}/${totalCritical} critical checks passed)`; const message = `Databricks workspace storage configuration validated: ${passedCritical}/${totalCritical} critical components configured. ${validationNotes.join('. ')}.`; return { status: 'pass', message: message, code: 'WORKSPACE_CONFIG_OK', test_id: 'IQ-101-4', title: 'Databricks Workspace Storage Configuration', expected_result, actual_result }; } else { actual_result = `Workspace: Configuration issues (${passedCritical}/${totalCritical} critical checks passed)`; const message = `Databricks workspace storage configuration failed: ${passedCritical}/${totalCritical} critical components configured. ${validationNotes.join('. ')}.`; return { status: 'fail', message: message, code: 'WORKSPACE_CONFIG_FAILED', test_id: 'IQ-101-4', title: 'Databricks Workspace Storage Configuration', expected_result, actual_result }; } }",
+  "manual_procedure": "1. Navigate to AWS S3 Console\n2. Verify DBFS root bucket exists and is accessible\n3. Check bucket region matches workspace region\n4. Navigate to AWS IAM Console\n5. Find the Databricks cross-account role\n6. Verify trust relationship includes Databricks principal account\n7. Check attached policies for S3 and Databricks permissions"
+}

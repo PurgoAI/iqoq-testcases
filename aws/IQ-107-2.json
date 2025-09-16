@@ -1,0 +1,46 @@
+{
+  "title": "Security Group Configuration",
+  "test_description": "Validate that the AWS Security Groups attached to Databricks workspace have proper ingress/egress rules and follow security best practices",
+  "version": "1.0",
+  "test_code": "IQ-107-2",
+  "test_seq": 2,
+  "test_suite": "IQ-107",
+  "test_suite_title": "Network Configuration",
+  "test_type": "Network",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "describe_security_groups",
+      "method": "POST",
+      "api_url": "https://ec2.${aws_region}.amazonaws.com/",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "ec2.${aws_region}.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}",
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      "payload": "Action=DescribeSecurityGroups&Filter.1.Name=vpc-id&Filter.1.Value.1=${vpc_id}&Filter.2.Name=group-name&Filter.2.Value.1=*databricks*&Version=2016-11-15",
+      "post_processing": "function processStep(responseData, currentVariables) { const securityGroupSet = responseData?.DescribeSecurityGroupsResponse?.securityGroupInfo?.item || []; const securityGroups = Array.isArray(securityGroupSet) ? securityGroupSet : [securityGroupSet]; const sgCount = securityGroups.length; let ingressRules = []; let egressRules = []; let hasOpenIngress = false; let hasRestrictedEgress = false; for (const sg of securityGroups) { const ingress = sg?.ipPermissions?.item || []; const egress = sg?.ipPermissionsEgress?.item || []; const ingressList = Array.isArray(ingress) ? ingress : [ingress]; const egressList = Array.isArray(egress) ? egress : [egress]; ingressRules = ingressRules.concat(ingressList); egressRules = egressRules.concat(egressList); for (const rule of ingressList) { const ipRanges = rule?.ipRanges?.item || []; const ranges = Array.isArray(ipRanges) ? ipRanges : [ipRanges]; if (ranges.some(r => r?.cidrIp === '0.0.0.0/0')) { hasOpenIngress = true; } } hasRestrictedEgress = egressList.length > 0 && !egressList.some(rule => { const ipRanges = rule?.ipRanges?.item || []; const ranges = Array.isArray(ipRanges) ? ipRanges : [ipRanges]; return ranges.some(r => r?.cidrIp === '0.0.0.0/0' && rule?.ipProtocol === '-1'); }); } return { ...currentVariables, security_group_count: sgCount, security_groups_data: securityGroups, ingress_rules_count: ingressRules.length, egress_rules_count: egressRules.length, has_open_ingress: hasOpenIngress, has_restricted_egress: hasRestrictedEgress }; }"
+    },
+    {
+      "step": 2,
+      "name": "describe_default_security_group",
+      "method": "POST",
+      "api_url": "https://ec2.${aws_region}.amazonaws.com/",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "ec2.${aws_region}.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}",
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      "payload": "Action=DescribeSecurityGroups&Filter.1.Name=vpc-id&Filter.1.Value.1=${vpc_id}&Filter.2.Name=group-name&Filter.2.Value.1=default&Version=2016-11-15",
+      "post_processing": "function processStep(responseData, currentVariables) { const defaultSgSet = responseData?.DescribeSecurityGroupsResponse?.securityGroupInfo?.item || []; const defaultSgs = Array.isArray(defaultSgSet) ? defaultSgSet : [defaultSgSet]; const defaultSg = defaultSgs.find(sg => sg?.groupName === 'default'); let defaultSgRestricted = false; if (defaultSg) { const ingress = defaultSg?.ipPermissions?.item || []; const ingressList = Array.isArray(ingress) ? ingress : [ingress]; defaultSgRestricted = ingressList.length === 0 || !ingressList.some(rule => { const ipRanges = rule?.ipRanges?.item || []; const ranges = Array.isArray(ipRanges) ? ipRanges : [ipRanges]; return ranges.some(r => r?.cidrIp === '0.0.0.0/0'); }); } return { ...currentVariables, default_sg_exists: !!defaultSg, default_sg_restricted: defaultSgRestricted, default_sg_id: defaultSg?.groupId }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const sgStep = stepResults.describe_security_groups; const defaultSgStep = stepResults.describe_default_security_group; const expected_result = 'Security Groups: Databricks SGs configured, default SG restricted'; let actual_result = 'Security Groups: Not configured'; if (sgStep.error) { return { status: 'fail', message: 'Failed to describe security groups', code: 'SG_DESCRIBE_FAILED', test_id: 'IQ-107-2', title: 'Security Group Configuration', expected_result, actual_result }; } if (defaultSgStep.error) { return { status: 'fail', message: 'Failed to describe default security group', code: 'DEFAULT_SG_DESCRIBE_FAILED', test_id: 'IQ-107-2', title: 'Security Group Configuration', expected_result, actual_result }; } const sgCount = variables.security_group_count || 0; const ingressCount = variables.ingress_rules_count || 0; const egressCount = variables.egress_rules_count || 0; const hasOpenIngress = variables.has_open_ingress || false; const hasRestrictedEgress = variables.has_restricted_egress || false; const defaultSgExists = variables.default_sg_exists || false; const defaultSgRestricted = variables.default_sg_restricted || false; const validationNotes = []; if (sgCount > 0) { validationNotes.push(`Found ${sgCount} Databricks security groups`); validationNotes.push(`${ingressCount} ingress rules, ${egressCount} egress rules`); if (hasOpenIngress) { validationNotes.push('WARNING: Some security groups have open ingress (0.0.0.0/0)'); } else { validationNotes.push('No open ingress rules found'); } if (hasRestrictedEgress) { validationNotes.push('Egress rules are properly restricted'); } else { validationNotes.push('WARNING: Egress rules may be too permissive'); } } else { validationNotes.push('No Databricks security groups found'); } if (defaultSgExists) { if (defaultSgRestricted) { validationNotes.push('Default security group is properly restricted'); } else { validationNotes.push('WARNING: Default security group has permissive rules'); } } else { validationNotes.push('Default security group not found'); } const securityChecks = [sgCount > 0, !hasOpenIngress, hasRestrictedEgress, defaultSgRestricted]; const passedChecks = securityChecks.filter(Boolean).length; const totalChecks = securityChecks.length; if (passedChecks >= 3) { actual_result = `Security Groups: ${sgCount} Databricks SGs, default SG restricted (${passedChecks}/${totalChecks} checks passed)`; const message = `Security group configuration meets security requirements: ${passedChecks}/${totalChecks} security checks passed. ${validationNotes.join('. ')}.`; return { status: 'pass', message: message, code: 'SG_CONFIG_OK', test_id: 'IQ-107-2', title: 'Security Group Configuration', expected_result, actual_result }; } else { actual_result = `Security Groups: Security issues found (${passedChecks}/${totalChecks} checks passed)`; const message = `Security group configuration has security concerns: ${passedChecks}/${totalChecks} security checks passed. ${validationNotes.join('. ')}.`; return { status: 'fail', message: message, code: 'SG_CONFIG_INSECURE', test_id: 'IQ-107-2', title: 'Security Group Configuration', expected_result, actual_result }; } }",
+  "manual_procedure": "1. Navigate to AWS EC2 Console\n2. Go to Security Groups section\n3. Filter by VPC ID used by Databricks\n4. Find Databricks-related security groups\n5. Review ingress rules for overly permissive access\n6. Check egress rules are appropriately restricted\n7. Verify default security group has no open ingress rules"
+}

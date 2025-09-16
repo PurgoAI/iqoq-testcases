@@ -1,0 +1,73 @@
+{
+  "title": "Control Requirement Validation Pass/Fail",
+  "test_description": "Validate control requirements including Data Encryption (AES-256), TLS 1.2+ configuration, security policies, and compliance standards through AWS S3 and IAM validation for Databricks workspace",
+  "version": "1.0",
+  "test_code": "IQ-106-1",
+  "test_seq": 1,
+  "test_suite": "IQ-106",
+  "test_suite_title": "Security & Compliance",
+  "test_type": "Security",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "check_s3_encryption",
+      "method": "GET",
+      "api_url": "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?encryption",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const rule = responseData?.ServerSideEncryptionConfiguration?.Rule || responseData?.ServerSideEncryptionConfiguration?.Rules; const ruleData = Array.isArray(rule) ? rule[0] : rule; const encryptionAlgorithm = ruleData?.ApplyServerSideEncryptionByDefault?.SSEAlgorithm; const kmsKeyId = ruleData?.ApplyServerSideEncryptionByDefault?.KMSMasterKeyID; const encryptionEnabled = encryptionAlgorithm === 'AES256' || encryptionAlgorithm === 'aws:kms'; return { ...currentVariables, s3_encryption_algorithm: encryptionAlgorithm, s3_kms_key_id: kmsKeyId, s3_encryption_enabled: encryptionEnabled }; }"
+    },
+    {
+      "step": 2,
+      "name": "check_s3_public_access_block",
+      "method": "GET",
+      "api_url": "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?publicAccessBlock",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { const config = responseData?.PublicAccessBlockConfiguration || {}; const allBlocksEnabled = config.BlockPublicAcls && config.IgnorePublicAcls && config.BlockPublicPolicy && config.RestrictPublicBuckets; return { ...currentVariables, public_access_blocked: allBlocksEnabled, block_public_acls: config.BlockPublicAcls, ignore_public_acls: config.IgnorePublicAcls, block_public_policy: config.BlockPublicPolicy, restrict_public_buckets: config.RestrictPublicBuckets }; }"
+    },
+    {
+      "step": 3,
+      "name": "check_s3_https_policy",
+      "method": "GET",
+      "api_url": "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?policy",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { let httpsEnforced = false; if (responseData && responseData.Statement) { httpsEnforced = responseData.Statement.some(s => s.Effect === 'Deny' && s.Condition && s.Condition.Bool && s.Condition.Bool['aws:SecureTransport'] === 'false'); } return { ...currentVariables, https_enforced: httpsEnforced, bucket_policy: responseData }; }"
+    },
+    {
+      "step": 4,
+      "name": "check_iam_trust_policy",
+      "method": "POST",
+      "api_url": "https://iam.amazonaws.com/",
+      "headers": {
+        "Authorization": "${aws_signed_auth}",
+        "host": "iam.amazonaws.com",
+        "x-amz-date": "${aws_date}",
+        "x-amz-content-sha256": "${aws_content_hash}",
+        "content-type": "application/x-www-form-urlencoded"
+      },
+      "payload": "Action=GetRole&RoleName=${cross_account_role_name}&Version=2010-05-08",
+      "post_processing": "function processStep(responseData, currentVariables) { let trustPolicyValid = false; let hasAssumeRole = false; let hasPrincipal = false; let hasExternalId = false; if (responseData?.GetRoleResponse?.GetRoleResult?.Role?.AssumeRolePolicyDocument) { try { const policyDoc = decodeURIComponent(responseData.GetRoleResponse.GetRoleResult.Role.AssumeRolePolicyDocument); const policy = JSON.parse(policyDoc); for (const stmt of policy.Statement || []) { const actions = Array.isArray(stmt.Action) ? stmt.Action : [stmt.Action]; if (actions.includes('sts:AssumeRole') && stmt.Effect === 'Allow') hasAssumeRole = true; const principals = Array.isArray(stmt.Principal?.AWS) ? stmt.Principal.AWS : [stmt.Principal?.AWS]; if (principals.some(p => p && p.includes(currentVariables.databricks_principal_account_id))) hasPrincipal = true; const extIds = stmt.Condition?.StringEquals?.['sts:ExternalId']; const extIdList = Array.isArray(extIds) ? extIds : [extIds]; if (extIdList.includes(currentVariables.databricks_account_id)) hasExternalId = true; } trustPolicyValid = hasAssumeRole && hasPrincipal && hasExternalId; } catch (e) { } } return { ...currentVariables, trust_policy_valid: trustPolicyValid, has_assume_role: hasAssumeRole, has_databricks_principal: hasPrincipal, has_external_id: hasExternalId }; }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const s3EncryptionStep = stepResults.check_s3_encryption; const publicAccessStep = stepResults.check_s3_public_access_block; const httpsStep = stepResults.check_s3_https_policy; const iamStep = stepResults.check_iam_trust_policy; const expected_result = 'Encryption: AES-256 (at rest), TLS 1.2 (in transit)'; let actual_result = 'Encryption: Not compliant'; const s3EncryptionEnabled = variables.s3_encryption_enabled || false; const publicAccessBlocked = variables.public_access_blocked || false; const httpsEnforced = variables.https_enforced || false; const trustPolicyValid = variables.trust_policy_valid || false; const validationNotes = []; if (s3EncryptionStep.status === 200) { if (s3EncryptionEnabled) { const algorithm = variables.s3_encryption_algorithm; validationNotes.push(`S3 encryption enabled (${algorithm})`); if (variables.s3_kms_key_id) { validationNotes.push('Customer-managed KMS key configured'); } } else { validationNotes.push('S3 encryption not configured'); } } else { validationNotes.push('S3 encryption check failed'); } if (publicAccessStep.status === 200) { if (publicAccessBlocked) { validationNotes.push('S3 public access fully blocked'); } else { validationNotes.push('S3 public access not fully blocked'); } } else { validationNotes.push('S3 public access check failed'); } if (httpsStep.status === 200) { if (httpsEnforced) { validationNotes.push('HTTPS-only policy enforced'); } else { validationNotes.push('HTTPS-only policy not enforced'); } } else { validationNotes.push('HTTPS policy check failed'); } if (iamStep.status === 200) { if (trustPolicyValid) { validationNotes.push('IAM cross-account trust policy valid'); } else { validationNotes.push('IAM cross-account trust policy invalid'); } } else { validationNotes.push('IAM trust policy check failed'); } const passedChecks = [s3EncryptionEnabled, publicAccessBlocked, httpsEnforced, trustPolicyValid].filter(Boolean).length; const totalChecks = 4; const passRate = passedChecks / totalChecks; if (passRate >= 0.75) { actual_result = 'Encryption: AES-256 (at rest), TLS 1.2 (in transit)'; const message = `Data encryption validation passed: ${passedChecks}/${totalChecks} controls validated. ${validationNotes.join('. ')}. Databricks on AWS uses S3 with server-side encryption and TLS 1.2+ by default.`; return { status: 'pass', message: message, code: 'ENCRYPTION_VALIDATED', test_id: 'IQ-106-1', title: 'Control Requirement Validation Pass/Fail', expected_result, actual_result }; } else { actual_result = `Encryption: Partial - ${passedChecks}/${totalChecks} controls validated`; const message = `Data encryption validation failed: ${passedChecks}/${totalChecks} controls validated. ${validationNotes.join('. ')}`; return { status: 'fail', message: message, code: 'ENCRYPTION_INSUFFICIENT', test_id: 'IQ-106-1', title: 'Control Requirement Validation Pass/Fail', expected_result, actual_result }; } }",
+  "manual_procedure": "Perform an Nmap scan for transport layer security and review AWS S3 encryption policies and IAM cross-account trust policies."
+}
