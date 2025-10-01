@@ -1,0 +1,18 @@
+Feature: Authorization Access (Role) - Revoke SELECT permission
+
+  Scenario: Revoke SELECT permission from TEMP_{catalog_name}_OQ105 group and verify access
+    Given a workspace URL and a group TEMP_{catalog_name}_OQ105
+    And a user2 belonging to the group TEMP_{catalog_name}_OQ105
+    When a request is made to revoke SELECT permission 
+      And the request is sent to POST ${workspace_url}/api/2.0/sql/statements with the appropriate payload
+    Then the response should have a status 200
+
+    When user2 attempts to access the table
+      And the request is sent to POST ${workspace_url}/api/2.0/sql/statements
+    Then the access should be denied
+      And the response should have a status indicating no access
+
+    When the user2 is removed from the group TEMP_{catalog_name}_OQ105
+      And the request is sent to PATCH ${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}
+    Then the response should have a status 200
+    And the group TEMP_{catalog_name}_OQ105 should no longer have user2 as a member

@@ -1,0 +1,14 @@
+Feature: Validate Model Registry functionality for patient_outcome_model
+
+  Scenario: Validate version tracking, stage transitions, and model signatures
+    Given the MLflow registry is accessible
+    When I check the MLflow registry with GET ${workspace_url}/api/2.0/mlflow/registered-models/list
+    Then the response should be valid and conform to expected schema
+
+    Given the Unity Catalog models are accessible
+    When I check the Unity Catalog models with GET ${workspace_url}/api/2.1/unity-catalog/models
+    Then the response should be valid and conform to expected schema
+
+    Given the model versions are tracked in MLflow
+    When I check the model versions for patient_outcome_model with GET ${workspace_url}/api/2.0/mlflow/model-versions/search?filter=name%3D%27patient_outcome_model%27
+    Then the response should be valid and conform to expected schema

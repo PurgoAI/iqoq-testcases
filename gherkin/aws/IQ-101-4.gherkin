@@ -1,0 +1,25 @@
+Feature: Validate Databricks workspace DBFS root bucket and cross-account IAM role configuration
+  In order to ensure compliance with required permissions
+  As an API tester
+  I want to validate the configuration of the DBFS root bucket and cross-account IAM role
+
+  Scenario: Validate DBFS root bucket and cross-account IAM role configuration
+    Given the Databricks workspace DBFS root bucket and IAM role details
+    When I check if the S3 bucket exists
+      And I send a GET request to "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/"
+    Then I should receive a successful response indicating the bucket exists
+
+    When I check the bucket location
+      And I send a GET request to "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?location"
+    Then I should receive a successful response with the correct bucket location
+
+    When I check the cross-account IAM role
+      And I send a POST request to "https://iam.amazonaws.com/"
+    Then I should receive a successful response indicating the cross-account role is configured
+
+    When I check the role policies
+      And I send a POST request to "https://iam.amazonaws.com/"
+    Then I should receive a successful response indicating the role policies are correctly set
+
+    And the response should match the expected schema
+      And the expected response schema is null

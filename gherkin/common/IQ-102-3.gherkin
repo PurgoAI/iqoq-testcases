@@ -1,0 +1,7 @@
+Feature: Validate RBAC (Role-Based Access Control) implementation
+  Test Code: IQ-102-3
+
+  Scenario: Validate RBAC grants
+    Given I have a workspace URL as "${workspace_url}"
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" to check RBAC grants
+    Then the response schema should be null

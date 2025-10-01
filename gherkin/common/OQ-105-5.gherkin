@@ -1,0 +1,12 @@
+Feature: Authorization Access (Role) - Positive Test for Granting SELECT Permission
+
+Scenario: Grant SELECT permission to account-level group TEMP_{catalog_name}_OQ105 and verify user2 can access table
+  Given the account-level group TEMP_{catalog_name}_OQ105 exists
+  And user2 is a member of TEMP_{catalog_name}_OQ105
+  When a request is made to grant SELECT permission to TEMP_{catalog_name}_OQ105
+  Then the response should indicate the permission was granted successfully
+
+  Given user2 is trying to access the table
+  When user2 sends a request to select data from the table
+  Then the response should indicate the access was successful
+  And the response schema should be null

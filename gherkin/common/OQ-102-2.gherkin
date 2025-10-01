@@ -1,0 +1,5 @@
+Feature: Schema evolution validation for Delta table
+  Scenario: Validate schema evolution capabilities of Delta table
+    Given the API endpoint is set to describe detail table
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" to describe the Delta table
+    Then the response schema should be null

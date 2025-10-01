@@ -1,0 +1,9 @@
+Feature: Validate Cluster State RUNNING within 15min
+
+  Scenario: Ensure cluster is in RUNNING state within 15 minutes
+    Given the cluster status is checked using GET request to "${workspace_url}/api/2.0/clusters/get"
+    When the cluster is not in RUNNING state
+    Then start the cluster using POST request to "${workspace_url}/api/2.0/clusters/start"
+    And poll the cluster status every minute using GET request to "${workspace_url}/api/2.0/clusters/get" for up to 15 minutes
+    Then the cluster should reach RUNNING state within 15 minutes
+    And the test passes if the cluster was already in RUNNING state initially

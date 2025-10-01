@@ -1,0 +1,8 @@
+Feature: Validate notebook sharing RBAC compliance for specific notebook OQ-108-1
+
+  Scenario: Ensure proper access controls are enforced on the notebook
+    Given the notebook ID is "${oq_108_1_notebook_id}"
+    And the workspace URL is "${workspace_url}"
+    When I check notebook permissions with GET request to "${workspace_url}/api/2.0/permissions/notebooks/${oq_108_1_notebook_id}"
+    Then the response schema should be null
+    And the response should indicate proper RBAC enforcement on the notebook

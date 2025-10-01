@@ -1,0 +1,14 @@
+Feature: Validate Azure Virtual Network Subnet Configuration
+
+  Scenario: Ensure Azure Virtual Network has required subnets with proper CIDR
+    Given a valid Azure subscription ID and resource group
+    And a workspace name is provided
+    When I send a GET request to retrieve the workspace managed resource group
+    Then I receive a response with a status code of 200
+    And the response contains the effective resource group name
+
+    Given the effective resource group name and virtual network name
+    When I send a GET request to retrieve the virtual network subnets
+    Then I receive a response with a status code of 200
+    And the response contains the expected number of subnets
+    And each subnet has the proper CIDR configuration

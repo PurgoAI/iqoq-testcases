@@ -1,0 +1,12 @@
+Feature: SDTM_DM Table Refresh and Validation
+
+  Scenario: OQ-103-1 - Refresh and Validate SDTM_DM Table
+    Given the API endpoint is "${workspace_url}/api/2.0/sql/statements"
+    When I POST a request to check table existence for "silver.sdtm_dm"
+    Then the response should indicate the table exists
+
+    When I POST a request to refresh the "silver.sdtm_dm" materialized view
+    Then the table should be refreshed successfully
+
+    When I POST a request to check the transformation audit trail
+    Then the response should confirm the audit trail reflects the refresh operation

@@ -1,0 +1,6 @@
+Feature: Authorization Listing - Negative: User2 cannot access table without permissions
+
+  Scenario: OQ-105-1 - Test unauthorized access by user2
+    Given user2 is not authorized to access the table
+    When user2 sends a POST request to "${workspace_url}/api/2.0/sql/statements"
+    Then the response schema should be null

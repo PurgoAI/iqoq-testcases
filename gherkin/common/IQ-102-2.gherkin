@@ -1,0 +1,6 @@
+Feature: Validate credential rotation by testing with an expired token (Test Code: IQ-102-2)
+
+  Scenario: Test invalid token by accessing the Unity Catalog API with an expired token
+    Given the user has an expired token
+    When the user makes a GET request to "${workspace_url}/api/2.0/unity-catalog/metastores"
+    Then the response schema should be null

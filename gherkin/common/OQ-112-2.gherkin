@@ -1,0 +1,20 @@
+Feature: Validate adding tables or views to Delta Sharing shares by adding data assets to an existing share
+
+  Scenario: OQ-112-2 Validate adding data assets to an existing Delta Sharing share
+    Given the Delta Sharing feature is enabled
+    When I check if Delta Sharing is enabled by sending a POST request to "${workspace_url}/api/2.0/sql/statements"
+    Then I should receive a response indicating that Delta Sharing is enabled
+
+    Given a share exists in Delta Sharing
+    When I check for the existence of a share by sending a POST request to "${workspace_url}/api/2.0/sql/statements"
+    Then I should receive a response confirming the share exists
+
+    Given I have a table or view to add to the share
+    When I add the table or view to the share by sending a POST request to "${workspace_url}/api/2.0/sql/statements"
+    Then the table or view should be successfully added to the share
+
+    Given the share contents need to be verified
+    When I verify the contents of the share by sending a POST request to "${workspace_url}/api/2.0/sql/statements"
+    Then the response should confirm the presence of the added table or view in the share
+
+    And the response schema should be null

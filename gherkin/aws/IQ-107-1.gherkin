@@ -1,0 +1,12 @@
+Feature: Validate the AWS VPC has the required number of subnets with proper CIDR configuration for Databricks workspace
+
+  Scenario: Ensure VPC compliance for Databricks workspace
+    Given I have access to the AWS region "<aws_region>"
+    When I describe the VPC with a POST request to "https://ec2.<aws_region>.amazonaws.com/" using the "describe_vpc" action
+    Then I should receive a successful response
+    And the response should contain the VPC ID for the Databricks workspace
+
+    When I describe the subnets with a POST request to "https://ec2.<aws_region>.amazonaws.com/" using the "describe_subnets" action
+    Then I should receive a successful response
+    And the response should contain the required number of subnets for the Databricks workspace
+    And each subnet should have a proper CIDR configuration as per Databricks requirements

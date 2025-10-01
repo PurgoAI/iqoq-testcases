@@ -1,0 +1,10 @@
+Feature: Validate access control by attempting to add a file without Git PAT
+
+  Scenario: IQ-108-2 - Attempt file upload without Git PAT
+    Given the user is authenticated via workspace at "${workspace_url}"
+    When I GET the current user from "${workspace_url}/api/2.0/preview/scim/v2/Me"
+    Then I should receive a successful response with the current user details
+
+    When I attempt to upload a file without Git PAT to "https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/test-access-control-${current_timestamp}.txt" using PUT
+    Then the response schema should be null
+    And the response should indicate access is denied due to missing credentials

@@ -1,0 +1,15 @@
+Feature: Validate directory structure (bronze/silver/gold layers)
+
+  Scenario: IQ-105-1 Validate directory structure compliance
+    Given the workspace URL is set
+    When I perform a POST request to "${workspace_url}/api/2.0/sql/statements" to get_metastore_id
+    Then the response status code should be 200
+    And the response schema should be null
+
+    When I perform a GET request to "${workspace_url}/api/2.1/unity-catalog/catalogs" to get_catalogs
+    Then the response status code should be 200
+    And the response schema should be null
+
+    When I perform a POST request to "${workspace_url}/api/2.0/sql/statements" to get_schemas_sql_fallback
+    Then the response status code should be 200
+    And the response schema should be null

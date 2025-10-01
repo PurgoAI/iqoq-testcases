@@ -1,0 +1,17 @@
+Feature: Validate Delta Sharing Outbound Share Creation
+
+  Scenario: OQ-112-1 - Create and verify Delta Sharing share configuration
+    Given the Delta Sharing feature is enabled in the workspace
+    When I check delta sharing enabled using POST to /api/2.0/sql/statements
+    Then the response should indicate delta sharing is enabled
+
+    When I create a share using POST to /api/2.0/sql/statements
+    Then the response should confirm the share creation
+
+    When I verify the share details using POST to /api/2.0/sql/statements
+    Then the response should match the expected share configuration
+
+    When I verify the share contents using POST to /api/2.0/sql/statements
+    Then the response should confirm the correct tables are included in the share
+
+    And the response schema should be null

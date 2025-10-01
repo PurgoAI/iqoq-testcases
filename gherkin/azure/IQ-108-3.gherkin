@@ -1,0 +1,9 @@
+Feature: Validate personal access tokens are stored in Azure Key Vault with AES-256 encryption
+
+  Scenario: Verify secret scope backend configuration for token storage compliance
+    Given a workspace URL as "${workspace_url}"
+    When I list secret scopes using GET on "${workspace_url}/api/2.0/secrets/scopes/list"
+    Then the secret scopes should be available
+
+    When I list secrets in the effective scope using GET on "${workspace_url}/api/2.0/secrets/list?scope=${effective_scope_name}"
+    Then the secrets should be stored with AES-256 encryption in Azure Key Vault

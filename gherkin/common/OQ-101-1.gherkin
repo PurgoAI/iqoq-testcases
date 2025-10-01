@@ -1,0 +1,8 @@
+Feature: Validate Databricks cluster runtime version for Unity Catalog compatibility
+
+  Scenario: Check if the cluster has the required runtime version DBR 11.3 LTS or newer
+    Given the Databricks workspace URL is set
+    When I send a GET request to "${workspace_url}/api/2.0/clusters/get" to get cluster info
+    Then the response status code should be 200
+    And the response should have a runtime version field
+    And the runtime version should be "DBR 11.3 LTS" or newer

@@ -1,0 +1,7 @@
+Feature: Validate Delta Sharing recipient creation and access granting
+  Scenario: Delta Sharing recipient creation and access granting compliance test OQ-112-3
+    Given Delta Sharing is enabled in the workspace
+    When I create a new recipient
+    And I grant access to shares for the recipient
+    Then the recipient and grants should be verified successfully
+    And the response schema should be null

@@ -1,0 +1,6 @@
+Feature: Authorization Access (Role) - Negative
+
+  Scenario: OQ-105-4 - User2 cannot SELECT from table without role permissions
+    Given a user "user2" without SELECT permissions on the target table
+    When the user sends a POST request to "${workspace_url}/api/2.0/sql/statements" to attempt a SELECT operation
+    Then the response should be null as the access is unauthorized

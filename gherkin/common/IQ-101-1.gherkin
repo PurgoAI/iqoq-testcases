@@ -1,0 +1,7 @@
+Feature: Validate that the Databricks workspace is accessible
+
+  Scenario: Test IQ-101-1 - Validate Databricks workspace accessibility
+    Given the Databricks API is available
+    When I send a GET request to "${workspace_url}/api/2.0/workspace/list"
+    Then I should receive a successful response
+    And the response schema should be null

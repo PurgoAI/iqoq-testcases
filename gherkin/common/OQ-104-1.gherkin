@@ -1,0 +1,9 @@
+Feature: Data Validation - Completeness check for patient_id field
+
+  Scenario: Validate patient_id field completeness meets ≥99.5% requirement
+    Given the API endpoint is ready for validation
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" to check_table_exists
+    Then the response should indicate that the table exists
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" to validate_completeness of patient_id
+    Then the completeness of the patient_id field should be ≥99.5%
+    And the response schema should be null

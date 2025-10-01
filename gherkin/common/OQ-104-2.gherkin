@@ -1,0 +1,7 @@
+Feature: Data Validation - Invalid Records Check for Heart Rate Field
+
+  Scenario: Validate heart rate invalid records compliance requirement OQ-104-2
+    Given the workspace URL is set to "${workspace_url}"
+    When I send a POST request to "/api/2.0/sql/statements" to validate_invalid_records
+    Then the response should confirm that invalid heart rate records are ≤0.1%
+    And the response schema should be null

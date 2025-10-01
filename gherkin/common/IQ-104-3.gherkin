@@ -1,0 +1,10 @@
+Feature: Validate Databricks Cluster Autoscaling Configuration
+  In order to ensure compliance with autoscaling settings
+  As a tester
+  I want to validate that the Databricks cluster has the required auto-scaling configuration
+
+  Scenario: Validate Cluster Autoscaling Configuration
+    Given the Databricks API is available
+    When I request the cluster autoscaling configuration
+    Then the response schema should be null
+    And the cluster should have the required auto-scaling configuration

@@ -1,0 +1,9 @@
+Feature: Validate MLflow Experiment Tracking - OQ-109-1
+
+  Scenario: Ensure MLflow experiment tracking is configured correctly
+    Given the MLflow tracking server is accessible at "${workspace_url}"
+    When a request is made to list MLflow experiments
+    Then the response should be successful with status code 200
+    And the response body should match the expected schema for MLflow experiments list
+    And the MLflow experiments list should not be null
+    And the MLflow model tracking configuration should be verified as correct

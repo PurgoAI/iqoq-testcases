@@ -1,0 +1,11 @@
+Feature: Validate VPC Flow Logs Compliance and Archival to S3
+  Test Code: IQ-107-3
+
+  Scenario: Ensure VPC Flow Logs are enabled and archived to S3 for compliance
+    Given I have access to the AWS environment in region "<aws_region>"
+    When I describe the flow logs by making a POST request to "https://ec2.<aws_region>.amazonaws.com/"
+    Then I should receive a response indicating flow logs are enabled
+    And I extract the flow log bucket name from the response
+
+    When I check the S3 bucket lifecycle by making a GET request to "https://<flow_log_bucket>.s3.<aws_region>.amazonaws.com/?lifecycle"
+    Then I should receive a response confirming the bucket lifecycle policy is set for archival compliance

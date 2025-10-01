@@ -1,0 +1,11 @@
+Feature: Validate activity auditing by enabling the system schema
+  Scenario: Multi-step workflow for auditing compliance
+    Given the workspace URL is set
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" to get_metastore_id
+    Then I should receive a response containing the metastore_id_uuid
+    When I send a PUT request to "${workspace_url}/api/2.1/unity-catalog/metastores/${metastore_id_uuid}/systemschemas/query" to enable_system_query_schema
+    Then the system query schema should be enabled successfully
+    When I send a GET request to "${workspace_url}/api/2.0/preview/scim/v2/Me" to get_user_id
+    Then I should receive a response containing the user_id
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" to query_audit_logs
+    Then the response schema should be null

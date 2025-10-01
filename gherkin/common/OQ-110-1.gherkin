@@ -1,0 +1,6 @@
+Feature: Create a data drift monitor for the demographics table to enable drift detection and monitoring
+
+  Scenario: OQ-110-1 - Create drift monitor for demographics table
+    Given the workspace URL and catalog name are set
+    When I send a POST request to create a drift monitor at "${workspace_url}/api/2.1/unity-catalog/tables/${catalog_name}.bronze.demographics/monitor"
+    Then the response schema should be null

@@ -1,0 +1,36 @@
+Feature: Complete Git connection validation including credential creation, repository access, file upload to GitHub, and repository sync validation
+
+  Scenario: Validate entire Git integration workflow
+    Given the API endpoint is set to "${workspace_url}"
+    When I get the current user with "GET /api/2.0/preview/scim/v2/Me"
+    Then the response should be successful
+
+    When I check existing credentials with "GET /api/2.0/git-credentials"
+    Then the response should be successful
+
+    When I create or update credentials with "POST /api/2.0/git-credentials"
+    Then the response should be successful
+
+    When I check if the repository exists with "GET /api/2.0/repos"
+    Then the response should be successful
+
+    When I create the repository if needed with "POST /api/2.0/repos"
+    Then the response should be successful
+
+    When I list the initial repository contents with "GET /api/2.0/workspace/list"
+    Then the response should be successful
+
+    When I upload a file to GitHub with "PUT https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/test-sync-file-${current_timestamp}.txt"
+    Then the response should be successful
+
+    When I trigger repository sync with "PATCH /api/2.0/repos/${repo_id}"
+    Then the response should be successful
+
+    When I validate sync completion with "GET /api/2.0/workspace/list"
+    Then the response should be successful
+
+    When I validate repository access with "GET /api/2.0/repos"
+    Then the response should be successful
+
+    When I delete the test file from GitHub with "DELETE https://api.github.com/repos/${git_repo_owner}/${git_repo_name}/contents/test-sync-file-${current_timestamp}.txt"
+    Then the response should be successful

@@ -1,0 +1,12 @@
+Feature: Validate personal access tokens are stored in AWS Secrets Manager with AES-256 encryption
+
+  Scenario: API compliance test for storing tokens in AWS Secrets Manager
+    Given the workspace URL is set
+    When I list secret scopes using GET "${workspace_url}/api/2.0/secrets/scopes/list"
+    Then I should receive a successful response
+    And I extract the effective scope name from the response
+
+    When I list secrets in scope using GET "${workspace_url}/api/2.0/secrets/list?scope=${effective_scope_name}"
+    Then I should receive a successful response
+    And the secret storage configuration should indicate storage in AWS Secrets Manager with AES-256 encryption
+    And the response should match the expected schema which is null

@@ -1,0 +1,7 @@
+Feature: Validate Network Security Group (NSG) rules for proper security configuration
+
+  Scenario: Ensure only necessary ports are open in NSG rules
+    Given a subscription with an ID and a resource group with a workspace
+    When I retrieve the workspace managed resource group
+    And I retrieve the NSG rules for the effective resource group
+    Then the NSG rules should only have necessary ports open according to the security configuration policy

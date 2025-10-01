@@ -1,0 +1,11 @@
+Feature: Validate NSG Flow Logs Enablement and Archival for Compliance
+
+  Scenario: Ensure NSG Flow Logs are enabled and archived to storage
+    Given the subscription ID is "<subscription_id>" and resource group is "<resource_group>"
+    And the workspace name is "<workspace_name>" and network watcher name is "<network_watcher_name>"
+    When I send a GET request to "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.Databricks/workspaces/${workspace_name}?api-version=2024-05-01"
+    Then I should receive a successful response
+
+    When I send a POST request to "https://management.azure.com/subscriptions/${subscription_id}/resourceGroups/NetworkWatcherRG/providers/Microsoft.Network/networkWatchers/${network_watcher_name}/queryFlowLogStatus?api-version=2022-09-01"
+    Then the response should indicate that NSG Flow Logs are enabled
+    And the flow logs should be archived to storage as per compliance requirements

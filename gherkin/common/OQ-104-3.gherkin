@@ -1,0 +1,12 @@
+Feature: Data Validation - Schema Drift detection using DESCRIBE HISTORY
+
+  Scenario: Validate 0 schema drift incidents requirement
+    Given the API endpoint is set to "${workspace_url}/api/2.0/sql/statements"
+    When I perform the check_table_type operation
+    Then I should receive a response with no schema drift detected
+
+    When I perform the find_delta_table operation
+    Then I should receive a response with no schema drift detected
+
+    When I perform the validate_schema_drift operation
+    Then I should receive a response with an expected schema of null

@@ -1,0 +1,10 @@
+Feature: Validate Databricks cluster worker node type and count for compliance
+  Test Code: IQ-104-2
+
+  Scenario: Ensure Databricks cluster has required worker node type and count
+    Given the Databricks API at "${workspace_url}/api/2.0/clusters/get" is available
+    When I send a GET request to retrieve cluster information
+    Then the response should have a status code of 200
+    And the response should contain a cluster configuration
+    And the cluster configuration should have the required worker node type
+    And the cluster configuration should have the required worker node count

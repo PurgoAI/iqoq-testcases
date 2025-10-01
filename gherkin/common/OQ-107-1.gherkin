@@ -1,0 +1,11 @@
+Feature: Comprehensive Data Lineage Validation for gold.patient_summary Table
+
+  Scenario: Validate Lineage Graph and Extract Complete Lineage Path
+    Given the Unity Catalog is set up with table transformations from bronze to silver to gold
+    And the table name is "${catalog_name}.gold.patient_summary"
+    When I GET the lineage graph from "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.gold.patient_summary&include_entity_lineage=true"
+    Then the response should have a status code 200
+    And the response schema should be null
+    And the lineage graph should include all transformation dependencies from bronze to silver to gold
+    And the recursive lineage building should correctly represent the complete lineage path
+    And the lineage path extraction should show all dependencies in the transformation sequence

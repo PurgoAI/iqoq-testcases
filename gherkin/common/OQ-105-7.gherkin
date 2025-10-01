@@ -1,0 +1,7 @@
+Feature: Authorization Access (Direct) - Negative Test for User Permission on Table
+
+  Scenario: OQ-105-7 - User without Direct Permissions Cannot SELECT from Table
+    Given a user "user2" without direct permissions to SELECT from the table
+    When user "user2" performs a POST request to "${workspace_url}/api/2.0/sql/statements" with a SELECT statement
+    Then the response schema should be null
+    And access to the table should be denied with an unauthorized error message

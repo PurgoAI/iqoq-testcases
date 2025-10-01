@@ -1,0 +1,25 @@
+Feature: Authorization - Create Group for Testing Authorization
+  Test Code: OQ-105-2
+
+  Scenario: Create temporary account-level group
+
+    Given the API endpoint is "${workspace_url}/api/2.0/account/scim/v2/Groups"
+    When I check for existing groups using GET request
+    Then I should receive a response with status code 200
+
+    Given I have a group_id of an existing group
+    When I delete the existing group using DELETE request to "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}"
+    Then I should receive a response with status code 204
+
+    When I verify the group deletion using GET request
+    Then the group should no longer exist in the response
+
+    When I create a new group using POST request to "${workspace_url}/api/2.0/account/scim/v2/Groups"
+    Then I should receive a response with status code 201
+    And I should extract the new_group_id from the response
+
+    When I assign the new group to a workspace using PUT request to "${workspace_url}/api/2.0/preview/permissionassignments/principals/${new_group_id}"
+    Then I should receive a response with status code 200
+
+    When I wait for the new group to be available using GET request
+    Then the new group should be present in the response

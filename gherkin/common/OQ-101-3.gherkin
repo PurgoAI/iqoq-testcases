@@ -1,0 +1,6 @@
+Feature: Validate Unity Catalog compatibility by executing SHOW CATALOGS command successfully
+
+  Scenario: OQ-101-3 Execute SHOW CATALOGS API call
+    Given the Unity Catalog API endpoint is set at "${workspace_url}/api/2.0/sql/statements"
+    When I execute the "SHOW CATALOGS" command via POST request to the Unity Catalog API
+    Then the response schema should be null

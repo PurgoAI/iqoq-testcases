@@ -1,0 +1,8 @@
+Feature: Validate Databricks Cluster Delta Lake Version
+
+  Scenario: Validate that the Databricks cluster has the required Delta Lake version
+    Given I have a Databricks workspace with the URL "${workspace_url}"
+    When I send a GET request to "${workspace_url}/api/2.0/clusters/get"
+    Then the response should be received successfully
+    And the response should have a valid Delta Lake version
+    And the Delta Lake version should comply with the required version policies

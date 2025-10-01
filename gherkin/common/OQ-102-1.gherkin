@@ -1,0 +1,12 @@
+Feature: Bronze layer location validation using Unity Catalog metadata
+
+  Scenario: Validate bronze external locations and schemas
+    Given the API endpoint for checking external locations is available at "${workspace_url}/api/2.0/sql/statements"
+    When I send a POST request to check external locations with Unity Catalog metadata
+    Then I should receive a response with a status code indicating success
+    And the response schema should match the expected null schema
+
+    Given the API endpoint for checking bronze schemas is available at "${workspace_url}/api/2.0/sql/statements"
+    When I send a POST request to check bronze schemas with Unity Catalog metadata
+    Then I should receive a response with a status code indicating success
+    And the response schema should match the expected null schema

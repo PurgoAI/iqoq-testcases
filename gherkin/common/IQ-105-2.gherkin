@@ -1,0 +1,10 @@
+Feature: Validate Denial of Write Operations for Insufficient Permissions
+
+  Scenario: Attempt to insert data into a protected table as a user with insufficient permissions
+    Given the workspace URL is set
+    When I check the cluster security configurations with a GET request to "/api/2.0/clusters/list"
+    Then I should receive a successful response
+
+    When I attempt a write operation with a POST request to "/api/2.0/sql/statements"
+    Then the response schema should be null
+    And the write operation should be denied due to insufficient permissions

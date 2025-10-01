@@ -1,0 +1,17 @@
+Feature: Authorization Access (Direct) - Positive: Grant SELECT permission directly to user2 and verify access
+
+  Scenario: OQ-105-8 Ensure user2 can SELECT after being granted permission
+    Given the API endpoint is "${workspace_url}/api/2.0/preview/scim/v2/Me"
+    When I perform a GET request to get_user2_info
+    Then the response status code should be 200
+    And the response should match the expected schema null
+
+    Given the API endpoint is "${workspace_url}/api/2.0/sql/statements"
+    When I perform a POST request to grant_select_permission with the necessary payload
+    Then the response status code should be 200
+    And the response should match the expected schema null
+
+    Given the API endpoint is "${workspace_url}/api/2.0/sql/statements"
+    When I perform a POST request to test_select_access with the necessary payload
+    Then the response status code should be 200
+    And the response should match the expected schema null

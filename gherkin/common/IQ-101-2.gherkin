@@ -1,0 +1,10 @@
+Feature: Validate Databricks runtime version to ensure LTS version is used
+
+  Scenario: Validate LTS version for Databricks runtime
+    Given the Databricks workspace API endpoint is set
+    When I send a GET request to "${workspace_url}/api/2.1/clusters/list"
+    Then the response status code should be 200
+    And the response should contain a list of clusters
+    And for each cluster in the response
+      When I check the runtime version
+      Then it should match the LTS version criteria

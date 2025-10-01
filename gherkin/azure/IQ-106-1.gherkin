@@ -1,0 +1,14 @@
+Feature: Validate compliance for data encryption and security standards in Azure and Databricks
+
+  Scenario: Validate control requirements for data encryption and security policies
+    Given I have a subscription ID, resource group, and workspace name
+    And I have a managed resource group
+
+    When I request the workspace encryption details
+    Then the workspace should have encryption enabled using AES-256
+
+    When I request the storage accounts details
+    Then the storage accounts should have encryption enabled using AES-256
+    And the storage accounts should be configured with TLS 1.2 or higher
+
+    Then the system should comply with the specified security policies and compliance standards

@@ -1,0 +1,8 @@
+Feature: Validate Databricks cluster access mode for Unity Catalog compatibility
+
+  Scenario: Ensure the cluster has USER_ISOLATION or SINGLE_USER access mode for Unity Catalog
+    Given the API endpoint is "${workspace_url}/api/2.0/clusters/get"
+    When I send a GET request to get the cluster information
+    Then the response should have a status code of 200
+    And the response body should not be null
+    And the cluster access mode should be either "USER_ISOLATION" or "SINGLE_USER"

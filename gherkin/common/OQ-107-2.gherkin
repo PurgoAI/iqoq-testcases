@@ -1,0 +1,11 @@
+Feature: Recursive lineage validation for API compliance
+
+  Scenario: Validate transformation dependencies across multiple lineage levels - OQ-107-2
+    Given the workspace URL is set to "${workspace_url}"
+    And the catalog name is set to "${catalog_name}"
+    When I send a GET request to "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.silver.sdtm_dm&include_entity_lineage=true" to retrieve recursive upstream lineage
+    Then the response should have a valid status code
+    And the response schema should be null
+    When I send a GET request to "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.bronze.demographics&include_entity_lineage=true" to retrieve recursive downstream lineage
+    Then the response should have a valid status code
+    And the response schema should be null

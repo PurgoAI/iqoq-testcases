@@ -1,0 +1,7 @@
+Feature: Validate if workspace ESC (Enhanced Security Controls) is enabled
+
+  Scenario: Check if Enhanced Security Controls are enabled for the workspace
+    Given I have a subscription id "<subscription_id>" and resource group "<resource_group>" and workspace name "<workspace_name>"
+    When I send a GET request to "https://management.azure.com/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Databricks/workspaces/<workspace_name>?api-version=2024-05-01"
+    Then the response status code should be 200
+    And the response should contain the field "properties" with the field "enhancedSecurityControls" set to true

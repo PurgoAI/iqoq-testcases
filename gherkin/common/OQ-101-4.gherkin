@@ -1,0 +1,11 @@
+Feature: Validate auto-termination configuration for Databricks cluster
+  As a user
+  I want to ensure the Databricks cluster has auto-termination configured
+  So that the cluster complies with timeout settings
+
+  Scenario: Validate cluster auto-termination settings
+    Given the Databricks API endpoint is set to "${workspace_url}/api/2.0/clusters/get"
+    When I send a GET request to get the cluster information
+    Then the response should be received successfully
+    And the response should contain an auto-termination configuration
+    And the auto-termination timeout should be set to the expected value

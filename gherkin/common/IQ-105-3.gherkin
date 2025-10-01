@@ -1,0 +1,10 @@
+Feature: Validate access logging and auditing in Databricks
+
+  Scenario: Verify tokenLogin actions are logged in system.access.audit table
+    Given the Databricks workspace URL is set
+    When I send a GET request to "${workspace_url}/api/2.0/preview/scim/v2/Me"
+    Then I should receive a successful response for current user details
+
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" with the SQL query to check "tokenLogin" actions in "system.access.audit"
+    Then I should receive a response indicating successful execution of the query
+    And the response should match the expected schema: null

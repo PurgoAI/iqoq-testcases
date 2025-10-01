@@ -1,0 +1,8 @@
+Feature: Validate Unity Catalog metastore linkage and accessibility
+
+  Scenario: Validate that the Unity Catalog metastore is properly linked and accessible
+    Given the Unity Catalog metastore is set up in the workspace
+    When I send a POST request to "${workspace_url}/api/2.0/sql/statements" to get_metastore
+    Then the response should have a schema of null
+    And the response status code should be 200
+    And the Unity Catalog metastore should be linked and accessible as expected

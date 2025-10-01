@@ -1,0 +1,23 @@
+Feature: Authorization Listing - Positive
+
+  Scenario: Grant USE CATALOG and USE SCHEMA to account-level group and add user as member
+    Given the API is authenticated
+    When I get user information from "${workspace_url}/api/2.0/preview/scim/v2/Me"
+    Then the response status code should be 200
+
+    When I find the group with retry from "${workspace_url}/api/2.0/account/scim/v2/Groups"
+    Then the response status code should be 200
+
+    When I add the user to the group using PATCH "${workspace_url}/api/2.0/account/scim/v2/Groups/${group_id}"
+    Then the response status code should be 200
+
+    When I grant catalog permissions using POST "${workspace_url}/api/2.0/sql/statements"
+    Then the response status code should be 200
+
+    When I grant schema permissions using POST "${workspace_url}/api/2.0/sql/statements"
+    Then the response status code should be 200
+
+    When I test list tables using POST "${workspace_url}/api/2.0/sql/statements"
+    Then the response status code should be 200
+
+    Then the response schema should be null

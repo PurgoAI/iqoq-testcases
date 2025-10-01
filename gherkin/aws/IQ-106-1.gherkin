@@ -1,0 +1,23 @@
+Feature: Validate control requirements including Data Encryption, TLS configuration, security policies, and compliance standards for Databricks workspace
+  Test Code: IQ-106-1
+
+  Scenario: Multi-step compliance test for AWS S3 and IAM
+    Given a Databricks workspace with AWS S3 and IAM configured
+    When I check the S3 bucket encryption
+      And I send a GET request to "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?encryption"
+    Then I should receive a response indicating AES-256 encryption is enabled
+
+    When I check the S3 bucket public access block
+      And I send a GET request to "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?publicAccessBlock"
+    Then I should receive a response indicating public access is blocked
+
+    When I check the S3 bucket HTTPS policy
+      And I send a GET request to "https://${dbfs_root_bucket}.s3.${aws_region}.amazonaws.com/?policy"
+    Then I should receive a response indicating TLS 1.2+ is enforced
+
+    When I check the IAM trust policy
+      And I send a POST request to "https://iam.amazonaws.com/"
+    Then I should receive a response indicating compliance with the IAM security policies
+
+    And all responses should match the expected compliance standards
+    And the expected response schema should be null

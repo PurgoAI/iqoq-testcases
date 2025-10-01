@@ -1,0 +1,9 @@
+Feature: Blood Pressure and Heart Rate Validation - OQ-103-2
+
+  Scenario: Validate systolic and diastolic blood pressure and heart rate
+    Given the API endpoint is "${workspace_url}/api/2.0/sql/statements"
+    When I send a POST request to validate_bp_hr_values
+    Then the response should conform to the expected schema
+    And less than 1% of blood pressure values should be null
+    And less than 0.1% of heart rate values should be null
+    And less than 2% of blood pressure values should be invalid

@@ -1,0 +1,15 @@
+Feature: Authorization Access (Direct) - Revoke
+
+  Scenario: Revoke SELECT permission from user2 and verify user2 cannot access table
+    Given the API endpoint is "${workspace_url}/api/2.0/preview/scim/v2/Me"
+    When I send a GET request to get_user2_info
+    Then I verify the response contains user2's information
+
+    Given the API endpoint is "${workspace_url}/api/2.0/sql/statements"
+    When I send a POST request to revoke_select_permission with the correct payload
+    Then I verify the response indicates the permission has been revoked
+
+    Given the API endpoint is "${workspace_url}/api/2.0/sql/statements"
+    When I send a POST request to test_unauthorized_access with a SELECT statement
+    Then I verify the response schema is null
+    And I verify user2 cannot access the table due to lack of SELECT permission

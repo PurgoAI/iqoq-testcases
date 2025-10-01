@@ -1,0 +1,12 @@
+Feature: Validate AWS Security Groups Compliance for Databricks Workspace
+  Test Code: IQ-107-2
+
+  Scenario: Verify security group ingress/egress rules and compliance
+    Given I have the AWS region information
+    When I describe security groups using POST "https://ec2.${aws_region}.amazonaws.com/"
+    Then I should receive a response that conforms to the expected security compliance standards
+
+  Scenario: Check default security group rules
+    Given I have the AWS region information
+    When I describe the default security group using POST "https://ec2.${aws_region}.amazonaws.com/"
+    Then I should receive a response that conforms to the expected security compliance standards

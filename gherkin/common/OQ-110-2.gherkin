@@ -1,0 +1,13 @@
+Feature: Validate data drift monitor configuration for demographics table with time-series monitoring
+
+  Scenario: Ensure data drift monitor is active and configured correctly
+    Given the workspace URL and catalog name are set
+    When I check the drift monitor status for the demographics table
+      And I send a GET request to "${workspace_url}/api/2.1/unity-catalog/tables/${catalog_name}.bronze.demographics/monitor"
+    Then the drift monitor should be active and properly configured
+      And the response schema should be null
+
+    When I check the monitor refreshes
+      And I send a GET request to "${workspace_url}/api/2.1/unity-catalog/tables/${catalog_name}.bronze.demographics/monitor/refreshes"
+    Then the time-series monitoring should be configured correctly
+      And the response schema should be null

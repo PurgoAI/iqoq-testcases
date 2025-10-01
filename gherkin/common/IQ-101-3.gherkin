@@ -1,0 +1,13 @@
+Feature: Validate admin console access via SCIM API
+  Test Code: IQ-101-3
+
+  Scenario: Validate authorized and unauthorized access to SCIM API
+
+    Given the SCIM API is available
+    When an authorized user accesses the SCIM API at "${workspace_url}/api/2.0/preview/scim/v2/Users"
+    Then the access should be successful
+    And the response schema should be null
+
+    When an unauthorized user accesses the SCIM API at "${workspace_url}/api/2.0/preview/scim/v2/Users"
+    Then the access should be denied
+    And the response schema should be null
