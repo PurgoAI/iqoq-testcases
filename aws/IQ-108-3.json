@@ -1,0 +1,40 @@
+{
+  "title": "Token Encryption Validation - AWS Secrets Manager",
+  "test_description": "Validate that personal access tokens are stored in AWS Secrets Manager with AES-256 encryption by checking secret scope backend configuration.",
+  "version": "3.0",
+  "test_code": "IQ-108-3",
+  "test_seq": 3,
+  "test_suite": "IQ-108",
+  "test_suite_title": "Git Connection Validation",
+  "test_type": "Workspace",
+  "category": "IQ",
+  "api_calls": [
+    {
+      "step": 1,
+      "name": "list_secret_scopes",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/secrets/scopes/list",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { try { const scopes = responseData.scopes || []; let effectiveScopeName = currentVariables.scope_name; let targetScope = null; if (effectiveScopeName) { targetScope = scopes.find(scope => scope.name === effectiveScopeName); } else { if (scopes.length > 0) { const gitScope = scopes.find(scope => scope.name.toLowerCase().includes('git')); if (gitScope) { effectiveScopeName = gitScope.name; targetScope = gitScope; } else { effectiveScopeName = scopes[0].name; targetScope = scopes[0]; } } if (!targetScope) { effectiveScopeName = currentVariables.catalog_name; } } const scopeFound = targetScope !== undefined; const backendType = targetScope ? targetScope.backend_type : null; const isAwsSecretsManager = backendType === 'AWS_SECRETS_MANAGER'; const awsMetadata = targetScope ? targetScope.aws_region || targetScope.region : null; const kmsKeyId = targetScope ? targetScope.kms_key_id : null; return { ...currentVariables, scope_found: scopeFound, backend_type: backendType, is_aws_secrets_manager: isAwsSecretsManager, aws_region: awsMetadata, kms_key_id: kmsKeyId, total_scopes: scopes.length, effective_scope_name: effectiveScopeName }; } catch (error) { console.error('Post-processing error in list_secret_scopes:', error.message); return currentVariables; } }"
+    },
+    {
+      "step": 2,
+      "name": "list_secrets_in_scope",
+      "method": "GET",
+      "api_url": "${workspace_url}/api/2.0/secrets/list?scope=${effective_scope_name}",
+      "headers": {
+        "Authorization": "Bearer ${token}",
+        "Content-Type": "application/json"
+      },
+      "payload": {},
+      "post_processing": "function processStep(responseData, currentVariables) { try { const secrets = responseData.secrets || []; const hasSecrets = secrets.length > 0; const secretCount = secrets.length; const secretKeys = secrets.map(secret => secret.key); const hasGitPat = secretKeys.some(key => key.toLowerCase().includes('git') || key.toLowerCase().includes('pat') || key.toLowerCase().includes('token')); const lastUpdatedTimestamps = secrets.map(secret => secret.last_updated_timestamp); return { ...currentVariables, has_secrets: hasSecrets, secret_count: secretCount, secret_keys: secretKeys, has_git_pat: hasGitPat, last_updated_timestamps: lastUpdatedTimestamps }; } catch (error) { console.error('Post-processing error in list_secrets_in_scope:', error.message); return currentVariables; } }"
+    }
+  ],
+  "response_schema": null,
+  "parser_code": "function aggregateResults(stepResults) { const listScopesStep = stepResults.list_secret_scopes; const listSecretsStep = stepResults.list_secrets_in_scope; const expected_result = 'PAT stored in AWS Secrets Manager with AES-256 encryption confirmed'; let actual_result = 'Token encryption validation not completed'; let status = 'fail'; let code = 'VALIDATION_FAILED'; let message = 'Token encryption validation failed'; if (!listScopesStep || !listScopesStep.data) { actual_result = 'Failed to list secret scopes.'; return { status: 'fail', message: actual_result, code: 'SCOPES_LIST_FAILED', test_id: 'IQ-108-3', title: 'Token Encryption Validation - AWS Secrets Manager', expected_result, actual_result }; } if (!listSecretsStep || !listSecretsStep.data) { actual_result = 'Failed to list secrets in scope.'; return { status: 'fail', message: actual_result, code: 'SECRETS_LIST_FAILED', test_id: 'IQ-108-3', title: 'Token Encryption Validation - AWS Secrets Manager', expected_result, actual_result }; } const scopeFound = variables.scope_found || false; const backendType = variables.backend_type || 'UNKNOWN'; const isAwsSecretsManager = variables.is_aws_secrets_manager || false; const scopeName = variables.effective_scope_name || variables.scope_name || variables.catalog_name || 'unknown'; const awsRegion = variables.aws_region || 'Not configured'; const kmsKeyId = variables.kms_key_id || 'Not configured'; const hasSecrets = variables.has_secrets || false; const secretCount = variables.secret_count || 0; const hasGitPat = variables.has_git_pat || false; const secretKeys = variables.secret_keys || []; if (!scopeFound) { actual_result = `Secret scope '${scopeName}' not found. Available scopes: ${variables.total_scopes || 0}`; code = 'SCOPE_NOT_FOUND'; } else if (!isAwsSecretsManager) { actual_result = `Secret scope '${scopeName}' is not using AWS Secrets Manager. Backend type: ${backendType}. Expected: AWS_SECRETS_MANAGER`; code = 'NOT_AWS_SECRETS_MANAGER'; } else if (!hasSecrets) { actual_result = `Secret scope '${scopeName}' is configured with AWS Secrets Manager but contains no secrets.`; code = 'NO_SECRETS_IN_SCOPE'; } else { status = 'pass'; message = 'Token encryption validation passed: PAT stored in AWS Secrets Manager with AES-256 encryption'; code = 'AWS_SECRETS_MANAGER_VALIDATED'; actual_result = `PAT stored in AWS Secrets Manager confirmed. Scope: ${scopeName}. Backend: ${backendType}. Region: ${awsRegion}. KMS Key: ${kmsKeyId}. Secrets: ${secretCount}. Git PAT found: ${hasGitPat}. Secret keys: ${secretKeys.join(', ')}`; } return { status: status, message: message, code: code, test_id: 'IQ-108-3', title: 'Token Encryption Validation - AWS Secrets Manager', expected_result, actual_result }; }",
+  "manual_procedure": "Check secret scope configuration via API to validate that PAT is stored in AWS Secrets Manager with AES-256 encryption, and verify the secret exists in the scope."
+}

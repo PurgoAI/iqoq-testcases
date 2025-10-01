@@ -1,6 +1,6 @@
 {
   "title": "Metastore linkage",
-  "test_description": "Validate Metastore linkage with Azure AD integration",
+  "test_description": "Validate that the Unity Catalog metastore is properly linked and accessible",
   "version": "1.0",
   "test_code": "IQ-102-1",
   "test_seq": 1,
@@ -28,5 +28,5 @@
   ],
   "response_schema": null,
   "parser_code": "function aggregateResults(stepResults) { const metastoreStep = stepResults.get_metastore; const expected_result = 'Metastore: Linked'; let actual_result = 'Metastore ID: Not found'; if (metastoreStep.error) { return { status: 'fail', message: 'No response received from API', code: 'NO_RESPONSE', test_id: 'IQ-102-1', title: 'Metastore linkage', expected_result, actual_result }; } const apiOutput = metastoreStep.data; if (!apiOutput || !apiOutput.result || !apiOutput.result.data_array || apiOutput.result.data_array.length === 0) { return { status: 'fail', message: 'No metastore data found in response', code: 'NO_METASTORES', test_id: 'IQ-102-1', title: 'Metastore linkage', expected_result, actual_result }; } const metastoreValue = apiOutput.result.data_array[0][0]; if (metastoreValue) { actual_result = 'Metastore ID: ' + metastoreValue; return { status: 'pass', message: 'Metastore found and linked: ' + metastoreValue, code: 'METASTORE_LINKED', test_id: 'IQ-102-1', title: 'Metastore linkage', expected_result, actual_result }; } else { return { status: 'fail', message: 'Metastore ID is empty', code: 'EMPTY_METASTORE', test_id: 'IQ-102-1', title: 'Metastore linkage', expected_result, actual_result }; } }",
-  "manual_procedure": "Check Azure AD integration."
+  "manual_procedure": "Check Unity Catalog metastore configuration and verify it shows a valid metastore ID indicating proper cloud provider integration."
 }
