@@ -2,14 +2,8 @@
 """
 One-time script to generate Gherkin files from JSON test definitions using Azure OpenAI
 Run locally then commit to iqoq-testcases repo
-
-Usage:
-    1. Copy .env.example to .env and fill in your Azure OpenAI credentials
-    2. Create a virtual environment: python3 -m venv venv
-    3. Activate it: source venv/bin/activate
-    4. Install dependencies: pip install -r requirements.txt
-    5. Run: python3 generate-gherkin.py
 """
+
 import json
 import os
 import re
@@ -27,7 +21,7 @@ AZURE_OPENAI_API_MODEL = os.getenv("AZURE_OPENAI_API_MODEL")
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 
 def build_prompt(test_data):
-    """Build prompt for Gherkin generation matching compliance service logic"""
+    """Build prompt for Gherkin generation"""
     api_calls = test_data.get('api_calls', [])
 
     # Build summary of multi-step workflow
