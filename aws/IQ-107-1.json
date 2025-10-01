@@ -22,7 +22,7 @@
         "content-type": "application/x-www-form-urlencoded"
       },
       "payload": "Action=DescribeVpcs&VpcId.1=${vpc_id}&Version=2016-11-15",
-      "post_processing": "function processStep(responseData, currentVariables) { const vpcSet = responseData?.DescribeVpcsResponse?.vpcSet?.item; const vpc = Array.isArray(vpcSet) ? vpcSet[0] : vpcSet; const vpcCidr = vpc?.cidrBlock; const vpcState = vpc?.state; return { ...currentVariables, vpc_cidr_block: vpcCidr, vpc_state: vpcState }; }"
+      "post_processing": "function processStep(responseData, currentVariables) { try { if (!currentVariables) { console.error('Expected variable missing: currentVariables object is null or undefined'); return {}; } if (!currentVariables.vpc_id) { console.error('Expected variable missing: vpc_id is required for VPC validation'); return { ...currentVariables, validation_error: 'Missing vpc_id variable' }; } if (!responseData || !responseData.DescribeVpcsResponse) { console.error('Invalid response data: DescribeVpcsResponse is missing'); return { ...currentVariables, vpc_state: 'unknown', validation_error: 'Invalid VPC response data' }; } const vpcSet = responseData?.DescribeVpcsResponse?.vpcSet?.item; const vpc = Array.isArray(vpcSet) ? vpcSet[0] : vpcSet; const vpcCidr = vpc?.cidrBlock; const vpcState = vpc?.state; return { ...currentVariables, vpc_cidr_block: vpcCidr, vpc_state: vpcState }; } catch (error) { console.error('Post-processing error in describe_vpc:', error.message); return { ...currentVariables, validation_error: error.message }; } }"
     },
     {
       "step": 2,
