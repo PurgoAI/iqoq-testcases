@@ -1,11 +1,8 @@
-Feature: Comprehensive Data Lineage Validation for gold.patient_summary Table
+Feature: Validate notebook sharing RBAC compliance for specific notebook OQ-108-1
 
-  Scenario: Validate Lineage Graph and Extract Complete Lineage Path
-    Given the Unity Catalog is set up with table transformations from bronze to silver to gold
-    And the table name is "${catalog_name}.gold.patient_summary"
-    When I GET the lineage graph from "${workspace_url}/api/2.0/lineage-tracking/table-lineage?table_name=${catalog_name}.gold.patient_summary&include_entity_lineage=true"
-    Then the response should have a status code 200
-    And the response schema should be null
-    And the lineage graph should include all transformation dependencies from bronze to silver to gold
-    And the recursive lineage building should correctly represent the complete lineage path
-    And the lineage path extraction should show all dependencies in the transformation sequence
+  Scenario: Ensure proper access controls are enforced on the notebook
+    Given the notebook ID is "${oq_108_1_notebook_id}"
+    And the workspace URL is "${workspace_url}"
+    When I check notebook permissions with GET request to "${workspace_url}/api/2.0/permissions/notebooks/${oq_108_1_notebook_id}"
+    Then the response schema should be null
+    And the response should indicate proper RBAC enforcement on the notebook
